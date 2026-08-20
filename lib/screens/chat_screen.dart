@@ -113,6 +113,28 @@ class _ChatScreenState extends State<ChatScreen> {
   // Firestore Online-Stream
   StreamSubscription<QuerySnapshot<Map<String, dynamic>>>? _firestoreSubscription;
   final Set<String> _processedFirestoreDocs = {};
+  static const int _kMaxPersistedDocIds = 300;
+
+  /// Lädt bereits verarbeitete Firestore-Doc-IDs aus SharedPreferences,
+  /// damit gecachte Nachrichten beim erneuten Öffnen nicht doppelt
+  /// verarbeitet/gespeichert werden.
+  Future<void> _seedProcessedDocIds() async {
+    final prefs = await SharedPreferences.getInstance();
+    _processedFirestoreDocs.addAll(
+        prefs.getStringList('processed_docs_${widget.chatGroupId}') ??
+            const []);
+  }
+
+  void _persistProcessedDocIds() {
+    SharedPreferences.getInstance().then((prefs) {
+      var list = _processedFirestoreDocs.toList();
+      if (list.length > _kMaxPersistedDocIds) {
+        list = list.sublist(list.length - _kMaxPersistedDocIds);
+      }
+      prefs.setStringList('processed_docs_${widget.chatGroupId}', list);
+    });
+  }
+
   /// Mapping: lokale Nachrichten-ID → Firestore Document-ID
   final Map<String, String> _firestoreDocIdForMessage = {};
 
@@ -171,15 +193,20 @@ class _ChatScreenState extends State<ChatScreen> {
     // Wird gleich von SharedPreferences (chat_groups) ggf. überschrieben (airGap).
     _transport = (_firestoreChatId != null) ? ChatTransport.online : ChatTransport.offline;
     _loadTransportFromGroups();
-    _initializeChat();
-    if (_firestoreChatId != null) {
+    // WICHTIG: Firestore-Stream erst NACH dem Laden der lokalen Historie
+    // abonnieren – sonst überschreibt _saveChatMessages() beim ersten
+    // Stream-Event die gespeicherten Nachrichten mit einer fast leeren Liste.
+    _initializeChat().then((_) async {
+      if (!mounted || _firestoreChatId == null) return;
+      await _seedProcessedDocIds();
+      if (!mounted) return;
       _subscribeFirestore(_firestoreChatId!);
       // Auto-Handshake nur bei RSA/Hybrid-Chats (nicht bei OTP/EC oder relayForward – kein Public Key nötig)
       if (widget.encryptionType != qgap_model.EncryptionType.oneTimePad &&
           widget.encryptionType != qgap_model.EncryptionType.relayForward) {
         _autoSendPublicKeyHandshake();
       }
-    }
+    });
   }
 
   /// Lädt den Transport-Modus aus der ChatGroup in SharedPreferences.
@@ -211,13 +238,19 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Sendet automatisch beim Öffnen den eigenen Public Key als Handshake,
   /// damit der Gesprächspartner immer den aktuellen Schlüssel hat.
+  /// Wird pro Chat nur einmal gesendet – erneut nur, wenn sich der Key ändert.
   Future<void> _autoSendPublicKeyHandshake() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final myPublicKeyStr = prefs.getString('rsa_public_key');
       if (myPublicKeyStr != null && widget.firestoreChatId != null) {
+        final sentKey = 'handshake_sent_${widget.chatGroupId}';
+        if (prefs.getString(sentKey) == myPublicKeyStr.hashCode.toString()) {
+          return; // bereits mit aktuellem Key gesendet
+        }
         await FirestoreService().sendPublicKeyHandshake(
             widget.firestoreChatId!, myPublicKeyStr);
+        await prefs.setString(sentKey, myPublicKeyStr.hashCode.toString());
         developer.log('🔑 Auto-Handshake gesendet', name: 'ChatScreen');
       }
     } catch (e) {
@@ -461,6 +494,7 @@ class _ChatScreenState extends State<ChatScreen> {
             }
           }
         }
+        _persistProcessedDocIds();
       },
       onError: (e) => developer.log('Firestore stream error: $e', name: 'ChatScreen'),
     );
@@ -776,6 +810,10 @@ class _ChatScreenState extends State<ChatScreen> {
       doScroll();
       Future.delayed(const Duration(milliseconds: 150), doScroll);
       Future.delayed(const Duration(milliseconds: 400), doScroll);
+      // Zusätzlicher später Retry: Tastatur-Einblendanimation kann auf
+      // manchen Geräten länger dauern und den sichtbaren Bereich erst
+      // danach verkleinern.
+      Future.delayed(const Duration(milliseconds: 650), doScroll);
     });
   }
 
@@ -2498,6 +2536,9 @@ class _ChatScreenState extends State<ChatScreen> {
     if (selectedKeyFile == null &&
         currentEncryptionType == qgap_model.EncryptionType.oneTimePad) {
       debugPrint('QGAP_CHAT: _initializeChat early return – no key file, pendingMeta=${widget.pendingMetadata}');
+      // Historie trotzdem laden – sonst überschreibt ein späteres
+      // _saveChatMessages() die gespeicherten Nachrichten mit leerer Liste.
+      await _loadChatMessages();
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showMandatoryKeyFileSelection();
       });
@@ -2678,7 +2719,7 @@ class _ChatScreenState extends State<ChatScreen> {
     // Liefert zuverlässig alle Volumes inkl. USB OTG auch auf Samsung
     try {
       const storageChannel =
-          MethodChannel('de.paulporg.QGap/storage');
+          MethodChannel('de.paulporg.obmc/storage');
       final List<dynamic>? nativeVolumes =
           await storageChannel.invokeMethod<List<dynamic>>('getStorageVolumes');
       if (nativeVolumes != null) {
@@ -3230,8 +3271,16 @@ class _ChatScreenState extends State<ChatScreen> {
                 onPressed: chosen == null
                     ? null
                     : () async {
-                        setState(() => selectedEcFile = chosen);
+                        setState(() {
+                          selectedEcFile = chosen;
+                          // .qgap_ec ist die tatsächlich verwendete Schlüsseldatei —
+                          // muss synchron bleiben, sonst verschlüsselt der Chat
+                          // weiterhin mit der alten Datei.
+                          selectedKeyFile = chosen;
+                        });
                         await _saveEcSettings();
+                        await _saveSelectedKeyFile();
+                        await _loadKeyInfo();
                         if (ctx.mounted) Navigator.of(ctx).pop();
                         // Nach EC-Wechsel geparkte Nachrichten erneut versuchen.
                         unawaited(_retryParkedMessages());
@@ -3715,8 +3764,13 @@ class _ChatScreenState extends State<ChatScreen> {
       } else {
         await EcProvenanceService.markDigitalImport(picked.name);
       }
-      setState(() => selectedEcFile = picked.name);
+      setState(() {
+        selectedEcFile = picked.name;
+        selectedKeyFile = picked.name;
+      });
       await _saveEcSettings();
+      await _saveSelectedKeyFile();
+      await _loadKeyInfo();
       if (mounted) {
         showQgapSnackBar(context, 
           SnackBar(
@@ -3956,9 +4010,12 @@ class _ChatScreenState extends State<ChatScreen> {
     if (fileName == null) return;
     setState(() {
       selectedEcFile = fileName;
+      selectedKeyFile = fileName;
       ecUsbOnly = false; // Datei liegt jetzt lokal
     });
     await _saveEcSettings();
+    await _saveSelectedKeyFile();
+    await _loadKeyInfo();
     developer.log(
         'log: ✅ .qgap_ec via SAF importiert + Chat ${widget.chatGroupId} zugeordnet: $fileName',
         name: '_importEcFromUsbAndAssign');
@@ -4148,10 +4205,14 @@ class _ChatScreenState extends State<ChatScreen> {
           final newFileName = createdFileName;
           setState(() {
             selectedKeyFile = newFileName;
+            // Neu erstellte Datei trägt die Endung .qgap_ec — auch als
+            // EC-Zuordnung übernehmen, damit beide Felder synchron bleiben.
+            selectedEcFile = newFileName;
           });
 
           // Key-Datei-Zuordnung speichern
-          _saveSelectedKeyFile().then((_) {
+          _saveSelectedKeyFile().then((_) async {
+            await _saveEcSettings();
             // Chat vollständig initialisieren mit der neuen Datei
             _loadKeyInfo().then((_) {
               _loadChatMessages().then((_) {
@@ -4549,7 +4610,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final path = picked.path;
       if (path != null && path.isNotEmpty) {
         if (path.startsWith('content://')) {
-          const ch = MethodChannel('de.paulporg.QGap/file_intent');
+          const ch = MethodChannel('de.paulporg.obmc/file_intent');
           developer.log('log: Lese .qgap via Content-URI: $path', name: '_loadQGapFileFromDisk');
           final raw = await ch.invokeMethod<Uint8List>('readContentUri', path);
           bytes = raw;
@@ -6503,9 +6564,8 @@ class _ChatScreenState extends State<ChatScreen> {
           appState == AppLifecycleState.inactive ||
           appState == AppLifecycleState.hidden;
       if (isBackground) {
-        NotificationService().showNewMessageNotification(
+        NotificationService().showNewMessagesNotification(
           chatGroupId: widget.chatGroupId,
-          chatGroupName: widget.chatGroupName,
         );
       }
     }
@@ -7559,7 +7619,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final path = picked.path;
       if (path != null && path.isNotEmpty) {
         if (path.startsWith('content://')) {
-          const ch = MethodChannel('de.paulporg.QGap/file_intent');
+          const ch = MethodChannel('de.paulporg.obmc/file_intent');
           final raw = await ch.invokeMethod<Uint8List>('readContentUri', path);
           bytes = raw;
         } else {
@@ -9069,10 +9129,13 @@ class _ChatScreenState extends State<ChatScreen> {
           });
 
           WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (_scrollController.hasClients) {
-              _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-            }
+            // Fokus zurück ins Eingabefeld, damit direkt weitergeschrieben werden kann
+            if (mounted) _inputFocusNode.requestFocus();
           });
+          // Mehrfach scrollen: die Tastatur bleibt eingeblendet (Fokus-Rückgabe
+          // oben) und verkleinert den sichtbaren Bereich erst mit Verzögerung —
+          // ohne die Retries würde die gerade gesendete Nachricht dahinter verschwinden.
+          _ensureScrollToBottom();
 
           // Byte-Position für die aktuelle Datei speichern
           await _saveUsedKeyBytes();

@@ -121,14 +121,13 @@ class NotificationService {
 
   // ─── Benachrichtigung anzeigen ─────────────────────────────────────────────
 
-  /// Zeigt eine System-Benachrichtigung für eine neue Nachricht im Chat.
+  /// Zeigt eine System-Benachrichtigung für neue Nachrichten in einem Chat.
   ///
+  /// Zeigt aus Datenschutzgründen weder Chat-Name noch Nachrichtentext an —
+  /// nur die Anzahl neuer Nachrichten ("QGap: X neue Nachrichten.").
   /// [chatGroupId] wird als Payload gesetzt – Tap öffnet diesen Chat.
-  /// [chatGroupName] erscheint im Benachrichtigungstext.
-  /// [count] optionale Anzahl ungelesener Nachrichten.
-  Future<void> showNewMessageNotification({
+  Future<void> showNewMessagesNotification({
     required String chatGroupId,
-    required String chatGroupName,
     int count = 1,
   }) async {
     if (!enabled) return;
@@ -138,9 +137,7 @@ class NotificationService {
       return;
     }
 
-    final body = count > 1
-        ? '$count neue Nachrichten'
-        : 'Neue Nachricht';
+    final body = 'QGap: $count neue Nachricht${count == 1 ? '' : 'en'}.';
 
     const androidDetails = AndroidNotificationDetails(
       'QGAP_messages', // channel id
@@ -165,19 +162,19 @@ class NotificationService {
       macOS: darwinDetails,
     );
 
-    // Notification-ID aus chatGroupId ableiten (stabil pro Chat)
+    // Notification-ID aus chatGroupId ableiten (stabil pro Chat, ersetzt
+    // ältere Benachrichtigung desselben Chats statt zu stapeln).
     final notifId = chatGroupId.hashCode.abs() % 100000;
 
     try {
       await _plugin.show(
         notifId,
-        'Neue Nachricht(en) im QGap $chatGroupName Chat',
+        'QGap',
         body,
         details,
         payload: chatGroupId,
       );
-      developer.log(
-          'Notification gezeigt: "$chatGroupName" (id=$notifId)',
+      developer.log('Notification gezeigt: count=$count (id=$notifId)',
           name: 'NotificationService');
     } catch (e) {
       developer.log('Fehler beim Anzeigen der Notification: $e',

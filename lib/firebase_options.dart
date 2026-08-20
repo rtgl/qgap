@@ -14,7 +14,7 @@ import 'package:flutter/foundation.dart'
 /// Standard Firebase-Optionen für alle Plattformen.
 ///
 /// iOS wurde per FlutterFire CLI registriert:
-///   flutterfire configure --project=QGap-1856d --platforms=ios --ios-bundle-id=de.paulporg.QGap
+///   flutterfire configure --project=obmc-1856d --platforms=ios --ios-bundle-id=de.paulporg.QGap
 class DefaultFirebaseOptions {
   static FirebaseOptions get currentPlatform {
     if (kIsWeb) return web;
@@ -40,8 +40,8 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyBfAoGRKs1aNiZ0U0UVDZX599UkrPzuYXA',
     appId: '1:347828391849:android:274bf771f25467a5a83eb8',
     messagingSenderId: '347828391849',
-    projectId: 'QGap-1856d',
-    storageBucket: 'QGap-1856d.firebasestorage.app',
+    projectId: 'obmc-1856d',
+    storageBucket: 'obmc-1856d.firebasestorage.app',
   );
 
   // ── iOS (via FlutterFire CLI registriert) ─────────────────────────────────
@@ -50,8 +50,8 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyBB0mwcVhqVgHJzyTnvOrn7yltdkrLAOt4',
     appId: '1:347828391849:ios:d3b3d266e2d884bfa83eb8',
     messagingSenderId: '347828391849',
-    projectId: 'QGap-1856d',
-    storageBucket: 'QGap-1856d.firebasestorage.app',
+    projectId: 'obmc-1856d',
+    storageBucket: 'obmc-1856d.firebasestorage.app',
     iosBundleId: 'de.paulporg.QGap',
   );
   // ── Windows ──────────────────────────────────────────────────────────────
@@ -59,9 +59,9 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyBfAoGRKs1aNiZ0U0UVDZX599UkrPzuYXA',
     appId: '1:347828391849:web:c8af010f7c898e52a83eb8', // aus Console eingetragen!
     messagingSenderId: '347828391849',
-    projectId: 'QGap-1856d',
-    storageBucket: 'QGap-1856d.firebasestorage.app',
-    authDomain: 'QGap-1856d.firebaseapp.com',
+    projectId: 'obmc-1856d',
+    storageBucket: 'obmc-1856d.firebasestorage.app',
+    authDomain: 'obmc-1856d.firebaseapp.com',
   );
 
   // ── Web ───────────────────────────────────────────────────────────────────
@@ -69,9 +69,9 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyBfAoGRKs1aNiZ0U0UVDZX599UkrPzuYXA',
     appId: '1:347828391849:web:c8af010f7c898e52a83eb8',
     messagingSenderId: '347828391849',
-    projectId: 'QGap-1856d',
-    storageBucket: 'QGap-1856d.firebasestorage.app',
-    authDomain: 'QGap-1856d.firebaseapp.com',
+    projectId: 'obmc-1856d',
+    storageBucket: 'obmc-1856d.firebasestorage.app',
+    authDomain: 'obmc-1856d.firebaseapp.com',
   );
 
   // ── macOS ─────────────────────────────────────────────────────────────────
@@ -79,8 +79,8 @@ class DefaultFirebaseOptions {
     apiKey: 'AIzaSyBfAoGRKs1aNiZ0U0UVDZX599UkrPzuYXA',
     appId: '1:347828391849:web:c8af010f7c898e52a83eb8',
     messagingSenderId: '347828391849',
-    projectId: 'QGap-1856d',
-    storageBucket: 'QGap-1856d.firebasestorage.app',
-    authDomain: 'QGap-1856d.firebaseapp.com',
+    projectId: 'obmc-1856d',
+    storageBucket: 'obmc-1856d.firebasestorage.app',
+    authDomain: 'obmc-1856d.firebaseapp.com',
   );
 }

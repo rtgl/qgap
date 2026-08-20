@@ -736,7 +736,7 @@ class _TransferScreenState extends State<TransferScreen> {
       final path = picked.path;
       if (path != null && path.isNotEmpty) {
         if (path.startsWith('content://')) {
-          const ch = MethodChannel('de.paulporg.QGap/file_intent');
+          const ch = MethodChannel('de.paulporg.obmc/file_intent');
           final raw = await ch.invokeMethod<Uint8List>('readContentUri', path);
           bytes = raw;
         } else {
@@ -2863,7 +2863,11 @@ class _TransferScreenState extends State<TransferScreen> {
     final senderUid = (data['senderUid'] as String?) ?? '';
     final senderIsOffline = data['senderIsOffline'] == true;
     final encryptionType = (data['encryptionType'] as String?) ?? 'unknown';
-    final payloadType = (data['payloadType'] as String?) ?? 'QGAP_file';
+    // Legacy: alte App-Versionen senden noch obmc_*-payloadTypes
+    final payloadTypeRaw = (data['payloadType'] as String?) ?? 'QGAP_file';
+    final payloadType = payloadTypeRaw.startsWith('obmc_')
+        ? 'qgap_${payloadTypeRaw.substring(5)}'
+        : payloadTypeRaw;
     final preencrypted = data['preencrypted'] == true ||
         payloadType == FirestoreService.kPayloadTypeRelayPreencrypted;
     final isReceipt = payloadType == FirestoreService.kPayloadTypeReadReceipt;
@@ -3313,7 +3317,7 @@ class _TransferScreenState extends State<TransferScreen> {
     final path = picked.path;
     if (path != null && path.isNotEmpty) {
       if (path.startsWith('content://')) {
-        const ch = MethodChannel('de.paulporg.QGap/file_intent');
+        const ch = MethodChannel('de.paulporg.obmc/file_intent');
         bytes = await ch.invokeMethod<Uint8List>('readContentUri', path);
       } else {
         bytes = await File(path).readAsBytes();

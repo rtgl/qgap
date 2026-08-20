@@ -21,7 +21,7 @@ import 'package:qgap/model/public_screen_session.dart';
 /// Alle Firestore- und Storage-Operationen für PublicScreen-Sessions.
 class PublicScreenService {
   static const String _collection = 'public_screens';
-  static const String _hostingBaseUrl = 'https://QGap-1856d.web.app';
+  static const String _hostingBaseUrl = 'https://obmc-1856d.web.app';
   static const String _prefKey = 'public_screen_session_ids';
   static const String _secretPrefPrefix = 'public_screen_admin_secret_';
 

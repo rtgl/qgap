@@ -16,7 +16,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AuthService {
   static const String _prefUsername = 'firebase_username';
   static const String _prefPassword = 'firebase_password';
-  static const String _emailDomain  = '@QGap-app.de';
+  static const String _emailDomain  = '@obmc-app.de';
+  // Domain der Übergangs-Builds (Rebranding) – nur für Login-Fallback.
+  static const String _legacyEmailDomain = '@QGap-app.de';
 
   /// Zeichensatz für Passwörter und Chat-IDs (voll, mit Sonderzeichen)
   static const String _charsetFull =
@@ -117,13 +119,28 @@ class AuthService {
       );
       return true;
     } on FirebaseAuthException catch (e) {
-      if (e.code == 'user-not-found') {
-        // Account wurde in Firebase gelöscht → neu registrieren
+      // Firebase meldet bei aktiviertem E-Mail-Enumeration-Schutz
+      // 'invalid-credential' statt 'user-not-found'.
+      if (e.code == 'user-not-found' ||
+          e.code == 'invalid-credential' ||
+          e.code == 'wrong-password') {
+        // Übergangs-Builds (Rebranding) haben Konten unter @QGap-app.de
+        // registriert → mit alter Domain nachprobieren und Konto behalten.
+        try {
+          await FirebaseAuth.instance.signInWithEmailAndPassword(
+            email: '$username$_legacyEmailDomain',
+            password: password,
+          );
+          return true;
+        } on FirebaseAuthException {
+          // auch mit Legacy-Domain nicht vorhanden → neu registrieren
+        }
         await prefs.remove(_prefUsername);
         await prefs.remove(_prefPassword);
         await _registerNewIdentity(prefs);
         return true;
       }
+      // Netzwerk-/sonstige Fehler: Identität NICHT verwerfen, später erneut.
       return false;
     }
   }

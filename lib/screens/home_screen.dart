@@ -10,7 +10,8 @@ import 'dart:convert';
 import 'dart:math';
 import 'dart:io';
 import 'dart:async';
-import 'package:cloud_firestore/cloud_firestore.dart' show DocumentChangeType;
+import 'package:cloud_firestore/cloud_firestore.dart'
+    show DocumentChangeType, QuerySnapshot, Timestamp;
 import 'package:firebase_auth/firebase_auth.dart' show FirebaseAuth;
 import 'package:crypto/crypto.dart';
 import 'package:flutter/material.dart';
@@ -35,7 +36,6 @@ import 'package:qgap/services/auth_service.dart';
 import 'package:qgap/services/app_storage.dart';
 import 'package:qgap/services/ec_keyfile_service.dart';
 import 'package:qgap/services/launch_args.dart';
-import 'package:qgap/services/purchase_service.dart';
 import 'package:qgap/services/share_service.dart';
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:qgap/services/ec_provenance_service.dart';
@@ -68,7 +68,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   List<ChatGroup> chatGroups = [];
   final TextEditingController _groupNameController = TextEditingController();
   final TextEditingController _groupDescriptionController = TextEditingController();
@@ -85,6 +85,80 @@ class _HomeScreenState extends State<HomeScreen> {
   Map<String, String?> _chatContactName = {}; // 🔑 Kontaktname für RSA/Hybrid-Chats
   Map<String, int> _unreadCounts = {}; // 🔴 Ungelesene Nachrichten pro Chat
   bool _notificationsEnabled = true; // Benachrichtigungen aktiviert
+
+  // Live-Aktualisierung des Ungelesen-Zählers für Online-Chats (ohne Firestore-
+  // Reload nur beim Verlassen/Betreten eines Chats – reagiert auch während
+  // die App im Hintergrund/auf dem Home-Screen ist).
+  final Map<String, StreamSubscription<QuerySnapshot<Map<String, dynamic>>>>
+      _unreadMsgSubs = {};
+  final Map<String, int> _lastSeenMillisCache = {};
+  final Map<String, int> _liveUnreadKnown = {}; // Baseline gg. Doppel-Notifications
+
+  // Such-/Filterfeld über der Chat-Liste (durchsucht Name + Nachrichtentexte)
+  final TextEditingController _chatSearchController = TextEditingController();
+  String _chatSearchQuery = '';
+  Map<String, String> _chatSearchIndex = {}; // chatId -> durchsuchbarer Text (lowercase)
+
+  /// Mehrwort-Suche: jedes durch Leerzeichen getrennte Suchwort muss
+  /// irgendwo in [haystack] vorkommen (nicht zwingend zusammenhängend) —
+  /// wirkt wie eine Stern-Suche `*wort1*wort2*`.
+  bool _searchTextMatches(String haystack, String query) {
+    final terms = query.toLowerCase().split(RegExp(r'\s+')).where((t) => t.isNotEmpty);
+    if (terms.isEmpty) return true;
+    final h = haystack.toLowerCase();
+    return terms.every((t) => h.contains(t));
+  }
+
+  /// Chat-Gruppen, gefiltert nach [_chatSearchQuery] (Name/Beschreibung/Nachrichtentexte).
+  /// Bereits sortiert, da [chatGroups] selbst nach letzter Nachricht sortiert wird.
+  List<ChatGroup> get _visibleChatGroups {
+    final query = _chatSearchQuery.trim();
+    if (query.isEmpty) return chatGroups;
+    return chatGroups.where((g) {
+      final indexed = _chatSearchIndex[g.id] ?? g.name.toLowerCase();
+      return _searchTextMatches(indexed, query);
+    }).toList();
+  }
+
+  /// Präsentations-Sessions, gefiltert nach [_chatSearchQuery] (Titel/Status).
+  List<PublicScreenSession> get _visiblePublicSessions {
+    final query = _chatSearchQuery.trim();
+    if (query.isEmpty) return _publicSessions;
+    return _publicSessions.where((s) => _searchTextMatches(
+        '${s.title} präsentation ${s.state.label}', query)).toList();
+  }
+
+  /// Transfer-Hub-Kachel nur anzeigen, wenn kein Suchwort aktiv ist oder
+  /// ihr Text zum Suchwort passt.
+  bool get _transferHubVisible {
+    final query = _chatSearchQuery.trim();
+    if (query.isEmpty) return true;
+    return _searchTextMatches(
+      'transfer-hub qr-codes senden empfangen dateien teilen qr-galerie',
+      query,
+    );
+  }
+
+  /// Pairing-Status-Banner nur anzeigen, wenn kein Suchwort aktiv ist oder
+  /// sein Text (Titel + Untertitel) zum Suchwort passt.
+  bool get _pairingBannerVisible {
+    final query = _chatSearchQuery.trim();
+    if (query.isEmpty) return true;
+    final String text;
+    switch (_pairingCompleteness) {
+      case PairingCompleteness.none:
+        text = 'kein pairing aktiv bitte pairing einrichten '
+            '${_deviceRole == DeviceRole.airGap ? 'online-relay' : 'air-gap-gerät'}';
+        break;
+      case PairingCompleteness.sentOnly:
+        text = 'pairing unvollständig eigene daten gesendet partner qr scannen';
+        break;
+      case PairingCompleteness.complete:
+        text = 'pairing aktiv verbunden ${_pairingPartnerName ?? ''}';
+        break;
+    }
+    return _searchTextMatches(text, query);
+  }
 
   // Präsentations-Sessions (PublicScreen) für die Startseiten-Liste
   final PublicScreenService _publicScreenService = PublicScreenService();
@@ -116,7 +190,8 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    
+    WidgetsBinding.instance.addObserver(this);
+
     // Sicherheitsverzögerung für bessere App-Stabilität
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _initializeApp();
@@ -143,7 +218,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
     // MethodChannel: Eingehende Datei-Intents aus MainActivity empfangen
     const MethodChannel intentChannel =
-        MethodChannel('de.paulporg.QGap/file_intent');
+        MethodChannel('de.paulporg.obmc/file_intent');
     intentChannel.setMethodCallHandler((call) async {
       if (call.method == 'onFileIntent') {
         final uri = call.arguments as String?;
@@ -203,7 +278,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
       // Prüfe ob die App über einen Datei-Intent gestartet wurde
       try {
-        const channel = MethodChannel('de.paulporg.QGap/file_intent');
+        const channel = MethodChannel('de.paulporg.obmc/file_intent');
         final pendingUri = await channel.invokeMethod<String>('getPendingFileIntent');
         if (pendingUri != null && mounted) {
           // Kurze Verzögerung damit das UI vollständig aufgebaut ist
@@ -304,7 +379,7 @@ class _HomeScreenState extends State<HomeScreen> {
     try {
       if (localPathOrUri.startsWith('content://')) {
         // Fallback: Content URI direkt lesen (altes Verhalten)
-        const channel = MethodChannel('de.paulporg.QGap/file_intent');
+        const channel = MethodChannel('de.paulporg.obmc/file_intent');
         developer.log('QGAP_INTENT: Rufe getContentUriInfo für URI auf', name: '_handleIncomingFileIntent');
         final info = await channel.invokeMethod<Map<dynamic, dynamic>>(
           'getContentUriInfo',
@@ -784,76 +859,6 @@ class _HomeScreenState extends State<HomeScreen> {
   // ─── Online-Chat: Einladung senden ──────────────────────────────────────────
 
   /// Erstellt (falls nötig) einen Firestore-Chat und teilt eine .qgap_ch Datei.
-  /// Dialog für den einmaligen „Pro"-Kauf (pro Hauptversion).
-  Future<void> _showProDialog() async {
-    final details = await PurchaseService.proDetails();
-    if (!mounted) return;
-    await showDialog<void>(
-      context: context,
-      builder: (ctx) => ValueListenableBuilder<bool>(
-        valueListenable: PurchaseService.isPro,
-        builder: (ctx, isPro, _) => AlertDialog(
-          title: Row(
-            children: [
-              Icon(Icons.workspace_premium,
-                  color: isPro ? Colors.amber : Colors.grey),
-              const SizedBox(width: 8),
-              const Text('QGap Pro'),
-            ],
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(isPro
-                  ? '✅ Pro ist auf diesem Gerät freigeschaltet. Danke für deine Unterstützung!'
-                  : 'Schalte QGap Pro für diese Hauptversion frei – '
-                      'einmaliger Kauf, keine Abos.'),
-              if (!isPro && details != null) ...[
-                const SizedBox(height: 10),
-                Text('${details.title}: ${details.price}',
-                    style: const TextStyle(fontWeight: FontWeight.bold)),
-              ],
-              if (!isPro && details == null &&
-                  !PurchaseService.platformSupported) ...[
-                const SizedBox(height: 10),
-                const Text(
-                  'Der Kauf ist nur in der Android-/iOS-App möglich. '
-                  'Die Freischaltung gilt danach auf deinen Mobilgeräten.',
-                  style: TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-              ],
-            ],
-          ),
-          actions: [
-            if (!isPro && PurchaseService.platformSupported)
-              TextButton(
-                onPressed: () async {
-                  await PurchaseService.restore();
-                },
-                child: const Text('Käufe wiederherstellen'),
-              ),
-            if (!isPro && PurchaseService.platformSupported)
-              ElevatedButton.icon(
-                icon: const Icon(Icons.shopping_cart, size: 18),
-                label: const Text('Kaufen'),
-                onPressed: () async {
-                  final err = await PurchaseService.buyPro();
-                  if (err != null && ctx.mounted) {
-                    showQgapSnackBar(ctx,
-                        SnackBar(content: Text('⚠️ $err')));
-                  }
-                },
-              ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Schließen'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 
   Future<void> _sendOnlineInvite(ChatGroup group) async {
     // Gerät muss als Online-Gerät konfiguriert sein
@@ -2135,7 +2140,8 @@ class _HomeScreenState extends State<HomeScreen> {
             if (_homeProcessedTransferIds.contains(doc.id)) continue;
             final data = doc.data();
             if (data == null) continue;
-            final payloadType = (data['payloadType'] as String?) ?? '';
+            final payloadType =
+                _normalizeLegacyType(data['payloadType'] as String?);
             print('QGAP_RELAY: Eingehender Transfer id=${doc.id} payloadType=$payloadType');
             // Nur Relay-spezifische Payloads hier verarbeiten
             if (payloadType == FirestoreService.kPayloadTypeRelayPairAck) {
@@ -2180,15 +2186,30 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // Beim Zurückkehren aus dem Hintergrund: Ungelesen-Zähler + Chat-Liste
+    // neu laden, da wir keinen Timer/Live-Reload für offline-lokale Chats haben.
+    if (state == AppLifecycleState.resumed && mounted) {
+      _loadChatGroups();
+    }
+  }
+
+  @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _authStateSub?.cancel();
     _homeTransferSub?.cancel();
+    for (final sub in _unreadMsgSubs.values) {
+      sub.cancel();
+    }
+    _unreadMsgSubs.clear();
     _groupNameController.dispose();
     _groupDescriptionController.dispose();
     _scrollController.dispose();
     _descriptionFocusNode.dispose();
     _editNameFocusNode.dispose();
     _editDescriptionFocusNode.dispose();
+    _chatSearchController.dispose();
     super.dispose();
   }
 
@@ -2275,13 +2296,15 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  // Lädt die Zeitstempel der letzten Nachrichten für alle Chat-Gruppen
+  // Lädt die Zeitstempel der letzten Nachrichten für alle Chat-Gruppen,
+  // baut den Such-Index auf und sortiert die Chat-Liste (neueste zuerst).
   Future<void> _loadLastMessageTimes() async {
     try {
       developer.log('log: Starte Laden der letzten Nachrichtenzeiten', name: '_loadLastMessageTimes');
       
       final prefs = await SharedPreferences.getInstance();
       Map<String, DateTime?> tempLastMessageTimes = {};
+      Map<String, String> tempSearchIndex = {};
       
       for (ChatGroup group in chatGroups) {
         try {
@@ -2289,27 +2312,50 @@ class _HomeScreenState extends State<HomeScreen> {
           final messagesJson = prefs.getStringList(messagesKey) ?? [];
           
           DateTime? lastMessageTime;
-          if (messagesJson.isNotEmpty) {
+          final searchBuf = StringBuffer()
+            ..write(group.name.toLowerCase())
+            ..write(' ')
+            ..write(group.description.toLowerCase());
+
+          for (final msgJson in messagesJson) {
             try {
-              // Lade die letzte Nachricht
-              final lastMessageJson = messagesJson.last;
-              final messageData = json.decode(lastMessageJson);
-              lastMessageTime = DateTime.parse(messageData['timestamp']);
+              final messageData = json.decode(msgJson) as Map<String, dynamic>;
+              final ts = messageData['timestamp'];
+              final msgTime = ts is int
+                  ? DateTime.fromMillisecondsSinceEpoch(ts)
+                  : DateTime.tryParse(ts?.toString() ?? '');
+              if (msgTime != null &&
+                  (lastMessageTime == null || msgTime.isAfter(lastMessageTime))) {
+                lastMessageTime = msgTime;
+              }
+              final originalText = messageData['originalText'] as String?;
+              if (originalText != null && originalText.isNotEmpty) {
+                searchBuf.write(' ');
+                searchBuf.write(originalText.toLowerCase());
+              }
             } catch (e) {
-              developer.log('log: Fehler beim Laden der letzten Nachricht für Gruppe ${group.name}: $e', name: '_loadLastMessageTimes');
+              developer.log('log: Fehler beim Laden einer Nachricht für Gruppe ${group.name}: $e', name: '_loadLastMessageTimes');
             }
           }
-          
+
           tempLastMessageTimes[group.id] = lastMessageTime;
+          tempSearchIndex[group.id] = searchBuf.toString();
         } catch (e) {
           developer.log('log: Fehler beim Laden der Nachrichten für Gruppe ${group.id}: $e', name: '_loadLastMessageTimes');
           tempLastMessageTimes[group.id] = null;
         }
       }
+
+      // Neueste Nachricht zuerst; ohne Nachrichten fällt auf Erstellungsdatum
+      // zurück, damit neu angelegte Chats nicht ganz unten verschwinden.
+      DateTime effectiveTime(ChatGroup g) =>
+          tempLastMessageTimes[g.id] ?? g.createdAt;
+      chatGroups.sort((a, b) => effectiveTime(b).compareTo(effectiveTime(a)));
       
       if (mounted) {
         setState(() {
           lastMessageTimes = tempLastMessageTimes;
+          _chatSearchIndex = tempSearchIndex;
         });
         
         developer.log('log: Letzte Nachrichtenzeiten für ${lastMessageTimes.length} Gruppen erfolgreich geladen', name: '_loadLastMessageTimes');
@@ -2327,6 +2373,7 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+
   /// Lädt Ungelesen-Zähler für alle Chats (Nachrichten nach letztem Öffnen).
   Future<void> _loadUnreadCounts() async {
     try {
@@ -2334,6 +2381,7 @@ class _HomeScreenState extends State<HomeScreen> {
       final Map<String, int> counts = {};
       for (final group in chatGroups) {
         final lastSeen = prefs.getInt('last_seen_${group.id}') ?? 0;
+        _lastSeenMillisCache[group.id] = lastSeen;
         final messagesJson = prefs.getStringList('messages_${group.id}') ?? [];
         int unread = 0;
         for (final msgJson in messagesJson) {
@@ -2349,8 +2397,77 @@ class _HomeScreenState extends State<HomeScreen> {
       if (mounted) {
         setState(() => _unreadCounts = counts);
       }
+      // Live-Listener für Online-Chats starten/aufräumen (reagiert auch,
+      // während die App im Hintergrund/auf dem Home-Screen ist).
+      _syncUnreadListeners();
     } catch (e) {
       developer.log('log: Fehler beim Laden der Ungelesen-Zähler: $e', name: '_loadUnreadCounts');
+    }
+  }
+
+  /// Startet für jeden Online-Chat einen Firestore-Live-Listener, der den
+  /// Ungelesen-Zähler ohne Navigation/Reload aktuell hält, und räumt
+  /// Listener für nicht mehr vorhandene Chats auf.
+  void _syncUnreadListeners() {
+    final onlineIds = <String>{};
+    for (final group in chatGroups) {
+      if (!group.isOnlineEnabled || group.firestoreChatId == null) continue;
+      onlineIds.add(group.id);
+      if (_unreadMsgSubs.containsKey(group.id)) continue;
+      try {
+        _unreadMsgSubs[group.id] = FirestoreService()
+            .messagesStream(group.firestoreChatId!, pageSize: 200)
+            .listen(
+          (snap) => _handleUnreadSnapshot(group, snap),
+          onError: (e) => developer.log(
+              'log: Unread-Listener Fehler (${group.id}): $e',
+              name: '_syncUnreadListeners'),
+        );
+      } catch (e) {
+        developer.log('log: Unread-Listener Start fehlgeschlagen (${group.id}): $e',
+            name: '_syncUnreadListeners');
+      }
+    }
+    final staleIds =
+        _unreadMsgSubs.keys.where((id) => !onlineIds.contains(id)).toList();
+    for (final id in staleIds) {
+      _unreadMsgSubs.remove(id)?.cancel();
+      _liveUnreadKnown.remove(id);
+    }
+  }
+
+  /// Berechnet den Ungelesen-Zähler eines Online-Chats aus einem
+  /// Firestore-Snapshot (ohne Entschlüsselung — nur senderId/timestamp/type)
+  /// und benachrichtigt bei Anstieg, wenn die App im Hintergrund ist.
+  void _handleUnreadSnapshot(
+      ChatGroup group, QuerySnapshot<Map<String, dynamic>> snap) {
+    final myUid = AuthService.currentUid;
+    final lastSeen = _lastSeenMillisCache[group.id] ?? 0;
+    int unread = 0;
+    for (final doc in snap.docs) {
+      final data = doc.data();
+      final ts = data['timestamp'];
+      final msgMillis = ts is Timestamp ? ts.millisecondsSinceEpoch : 0;
+      if (data['type'] == 'handshake') continue;
+      if (data['senderId'] == myUid) continue;
+      if (msgMillis > lastSeen) unread++;
+    }
+    if (!mounted) return;
+    setState(() => _unreadCounts[group.id] = unread);
+
+    final knownBefore = _liveUnreadKnown[group.id] ?? unread;
+    _liveUnreadKnown[group.id] = unread;
+    if (unread > knownBefore && NotificationService.enabled) {
+      final appState = WidgetsBinding.instance.lifecycleState;
+      final isBackground = appState == AppLifecycleState.paused ||
+          appState == AppLifecycleState.inactive ||
+          appState == AppLifecycleState.hidden;
+      if (isBackground) {
+        NotificationService().showNewMessagesNotification(
+          chatGroupId: group.id,
+          count: unread,
+        );
+      }
     }
   }
 
@@ -2358,7 +2475,10 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _markChatAsSeen(String chatGroupId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('last_seen_$chatGroupId', DateTime.now().millisecondsSinceEpoch);
+      final now = DateTime.now().millisecondsSinceEpoch;
+      await prefs.setInt('last_seen_$chatGroupId', now);
+      _lastSeenMillisCache[chatGroupId] = now;
+      _liveUnreadKnown[chatGroupId] = 0;
       if (mounted) {
         setState(() => _unreadCounts[chatGroupId] = 0);
       }
@@ -4254,7 +4374,7 @@ class _HomeScreenState extends State<HomeScreen> {
     if (!_deviceRoleOffline) return; // Nur für Offline-Geräte relevant
 
     try {
-      const channel = MethodChannel('de.paulporg.QGap/connectivity_check');
+      const channel = MethodChannel('de.paulporg.obmc/connectivity_check');
       final raw = await channel.invokeMethod<Map<Object?, Object?>>('checkDataConnections');
       if (raw == null || !mounted) return;
 
@@ -5371,6 +5491,13 @@ class _HomeScreenState extends State<HomeScreen> {
                         ),
                       ),
                     ),
+                    const Padding(
+                      padding: EdgeInsets.only(top: 4, left: 4),
+                      child: Text(
+                        'Leer lassen, um den Passwortschutz zu deaktivieren',
+                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      ),
+                    ),
                     const SizedBox(height: 12),
                     TextField(
                       onChanged: (value) => confirmPassword = value,
@@ -5402,21 +5529,11 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 TextButton(
                   onPressed: () async {
-                    if (currentPassword.isEmpty || newPassword.isEmpty) {
-                      developer.log('log: Alle Felder müssen ausgefüllt werden', name: 'PasswordSettings');
+                    if (currentPassword.isEmpty) {
+                      developer.log('log: Aktuelles Passwort erforderlich', name: 'PasswordSettings');
                       return;
                     }
-                    
-                    if (newPassword != confirmPassword) {
-                      developer.log('log: Neue Passwörter stimmen nicht überein', name: 'PasswordSettings');
-                      return;
-                    }
-                    
-                    if (newPassword.length > 50) {
-                      developer.log('log: Neues Passwort zu lang (max. 50 Zeichen)', name: 'PasswordSettings');
-                      return;
-                    }
-                    
+
                     // Aktuelles Passwort prüfen (SHA-256 Vergleich)
                     final prefs = await SharedPreferences.getInstance();
                     final storedHash = prefs.getString('app_password');
@@ -5425,7 +5542,27 @@ class _HomeScreenState extends State<HomeScreen> {
                       developer.log('log: Aktuelles Passwort ist falsch', name: 'PasswordSettings');
                       return;
                     }
-                    
+
+                    // Leeres neues Passwort = Passwortschutz deaktivieren
+                    if (newPassword.isEmpty) {
+                      await prefs.remove('app_password');
+                      if (mounted) {
+                        Navigator.of(context).pop();
+                      }
+                      developer.log('log: ✅ App-Passwort deaktiviert (leere Eingabe)', name: 'PasswordSettings');
+                      return;
+                    }
+
+                    if (newPassword != confirmPassword) {
+                      developer.log('log: Neue Passwörter stimmen nicht überein', name: 'PasswordSettings');
+                      return;
+                    }
+
+                    if (newPassword.length > 50) {
+                      developer.log('log: Neues Passwort zu lang (max. 50 Zeichen)', name: 'PasswordSettings');
+                      return;
+                    }
+
                     // Neues Passwort gehasht speichern
                     await prefs.setString('app_password', _hashPassword(newPassword));
                     
@@ -5994,8 +6131,6 @@ class _HomeScreenState extends State<HomeScreen> {
                     builder: (_) => const PublicScreenListScreen(),
                   )).then((_) => _loadPublicSessions());
                 }
-              } else if (value == 'qgap_pro') {
-                _showProDialog();
               }
             },
             itemBuilder: (BuildContext context) => [
@@ -6079,62 +6214,81 @@ class _HomeScreenState extends State<HomeScreen> {
                   ],
                 ),
               ),
-              PopupMenuItem<String>(
-                value: 'qgap_pro',
-                child: Row(
-                  children: [
-                    Icon(
-                      PurchaseService.isPro.value
-                          ? Icons.workspace_premium
-                          : Icons.workspace_premium_outlined,
-                      color: PurchaseService.isPro.value
-                          ? Colors.amber
-                          : Colors.grey,
-                      size: 20,
-                    ),
-                    const SizedBox(width: 8),
-                    Text(PurchaseService.isPro.value
-                        ? 'QGap Pro ✓ aktiv'
-                        : 'QGap Pro freischalten'),
-                  ],
-                ),
-              ),
             ],
           ),
         ],
       ),
-      body: ListView.builder(
+      body: Column(
+        children: [
+          // Suchfeld: filtert Chats nach Name/Beschreibung/Nachrichtentext
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 20, 4),
+            child: TextField(
+              controller: _chatSearchController,
+              decoration: InputDecoration(
+                hintText: 'Chats durchsuchen …',
+                prefixIcon: const Icon(Icons.search),
+                suffixIcon: _chatSearchQuery.isEmpty
+                    ? null
+                    : IconButton(
+                        icon: const Icon(Icons.clear),
+                        tooltip: 'Suche löschen',
+                        onPressed: () {
+                          _chatSearchController.clear();
+                          setState(() => _chatSearchQuery = '');
+                        },
+                      ),
+                isDense: true,
+                border: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                filled: true,
+                fillColor: Colors.white,
+              ),
+              onChanged: (value) => setState(() => _chatSearchQuery = value),
+            ),
+          ),
+          Expanded(
+            child: ListView.builder(
           padding: const EdgeInsets.only(
             left: 16,
             right: 20,
             top: 8,
             bottom: 80, // Extra Platz für FloatingActionButton
           ),
-          // +1 für den fest eingepinnten Transfer-Hub-Eintrag
-          // +1 für Pairing-Status-Banner (wenn Online-Relay oder Air-Gap)
+          // +1 für den fest eingepinnten Transfer-Hub-Eintrag (nur ohne/mit passender Suche)
+          // +1 für Pairing-Status-Banner (wenn Online-Relay/Air-Gap, nur ohne/mit passender Suche)
           // +N für Präsentations-Sessions (nach den Chat-Gruppen)
-          itemCount: chatGroups.length + 1 + _publicSessions.length +
-              (_deviceRole != DeviceRole.standalone ? 1 : 0),
+          itemCount: _visibleChatGroups.length +
+              (_transferHubVisible ? 1 : 0) +
+              _visiblePublicSessions.length +
+              ((_deviceRole != DeviceRole.standalone && _pairingBannerVisible) ? 1 : 0),
           itemBuilder: (context, index) {
-            // ── Pairing-Status-Banner (nur bei Online-Relay / Air-Gap) ────
-            final bool showPairingBanner = _deviceRole != DeviceRole.standalone;
-            final int idx = showPairingBanner ? index - 1 : index;
-            if (showPairingBanner && index == 0) {
-              return _buildPairingStatusBanner();
+            final visibleGroups = _visibleChatGroups;
+            final visibleSessions = _visiblePublicSessions;
+            final showPairingBanner =
+                _deviceRole != DeviceRole.standalone && _pairingBannerVisible;
+            final showTransferHub = _transferHubVisible;
+            int idx = index;
+            // ── Pairing-Status-Banner ──────────────────────────────────────
+            if (showPairingBanner) {
+              if (idx == 0) return _buildPairingStatusBanner();
+              idx -= 1;
             }
             // ── Transfer-Hub (fest, nicht löschbar) ──────────────────────
-            if (idx == 0) {
-              return _buildTransferHubTile();
+            if (showTransferHub) {
+              if (idx == 0) return _buildTransferHubTile();
+              idx -= 1;
             }
 
             // ── Präsentationen (nach den Chat-Gruppen) ───────────────
-            if (idx - 1 >= chatGroups.length) {
-              final session = _publicSessions[idx - 1 - chatGroups.length];
+            if (idx >= visibleGroups.length) {
+              final session = visibleSessions[idx - visibleGroups.length];
               return _buildPublicSessionTile(session);
             }
 
             // ── Chat-Gruppen ──────────────────────────────────────────────
-            final group = chatGroups[idx - 1];
+            final group = visibleGroups[idx];
             final needsKey = _chatNeedsKey[group.id] ?? false;
               return Card(
                 margin: const EdgeInsets.only(bottom: 6), // Reduziert von 12 auf 8
@@ -6513,7 +6667,10 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
               );
             },
+            ),
           ),
+        ],
+      ),
       floatingActionButton: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
@@ -7841,7 +7998,7 @@ class _HomeScreenState extends State<HomeScreen> {
     // Liefert zuverlässig alle Volumes inkl. USB OTG auch auf Samsung/SELinux
     try {
       const storageChannel =
-          MethodChannel('de.paulporg.QGap/storage');
+          MethodChannel('de.paulporg.obmc/storage');
       final List<dynamic>? nativeVolumes =
           await storageChannel.invokeMethod<List<dynamic>>('getStorageVolumes');
       if (nativeVolumes != null) {

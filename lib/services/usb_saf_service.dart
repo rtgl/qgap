@@ -16,7 +16,7 @@ import 'package:flutter/services.dart';
 /// daraus resultierende Tree-Uri wird mit `takePersistableUriPermission`
 /// dauerhaft persistiert.
 class UsbSafService {
-  static const MethodChannel _ch = MethodChannel('de.paulporg.QGap/usbsaf');
+  static const MethodChannel _ch = MethodChannel('de.paulporg.obmc/usbsaf');
 
   /// Öffnet den System-Picker.  Liefert die gewählte Tree-Uri oder `null`,
   /// wenn der Nutzer abgebrochen hat.

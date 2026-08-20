@@ -22,7 +22,7 @@ class SettingsDialogWidget extends StatefulWidget {
   final String? initialEcFile;
   final bool initialEcUsbOnly;
 
-  // RSA-Schlüsselaustausch
+  // RSA-Schl�sselaustausch
   final String? initialContactKeyFingerprint;
   final Future<String?> Function() onScanContactPublicKey;
   final VoidCallback onShowMyPublicKey;
@@ -68,7 +68,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
   void initState() {
     super.initState();
     tempSelectedFile = widget.initialSelectedFile;
-    // Nur One-Time-Pad und Hybrid zulassen; falls initial RSA, auf One-Time-Pad zurÃ¼ckfallen
+    // Nur One-Time-Pad und Hybrid zulassen; falls initial RSA, auf One-Time-Pad zurückfallen
     tempEncryptionType =
         widget.initialEncryptionType == qgap_model.EncryptionType.rsa
             ? qgap_model.EncryptionType.oneTimePad
@@ -99,7 +99,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('VerfÃ¼gbare VerschlÃ¼sselungsdateien:'),
+              const Text('Verfügbare Verschlüsselungsdateien:'),
               const SizedBox(height: 5),
               Text(
                 '(Nur unzugeordnete Dateien werden angezeigt)',
@@ -111,7 +111,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
               ),
               const SizedBox(height: 10),
               widget.availableFiles.isEmpty
-                  ? const Text('Keine verfÃ¼gbaren .qgap Dateien gefunden',
+                  ? const Text('Keine verfügbaren .qgap Dateien gefunden',
                       style: TextStyle(color: Colors.red))
                   : DropdownButton<String>(
                       value: tempSelectedFile,
@@ -151,9 +151,9 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
               const Divider(),
               const SizedBox(height: 10),
 
-              // VerschlÃ¼sselungsart Einstellung
+              // Verschlüsselungsart Einstellung
               const Text(
-                'VerschlÃ¼sselungsart:',
+                'Verschlüsselungsart:',
                 style: TextStyle(fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 8),
@@ -199,11 +199,11 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                   switch (tempEncryptionType) {
                     case qgap_model.EncryptionType.oneTimePad:
                       description =
-                          'Sichere Einmal-Code - VerschlÃ¼sselung mit .qgap Dateien';
+                          'Sichere Einmal-Code - Verschlüsselung mit .qgap Dateien';
                       break;
                     case qgap_model.EncryptionType.hybrid:
                       description =
-                          'Kombination aus RSA und AES fÃ¼r optimale Sicherheit';
+                          'Kombination aus RSA und AES für optimale Sicherheit';
                       break;
                     default:
                       description = '';
@@ -246,12 +246,12 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                     keyboardType: TextInputType.number,
                     decoration: InputDecoration(
                       labelText: 'Neuer Byte-Offset',
-                      hintText: 'z.B. 0 fÃ¼r ZurÃ¼cksetzen',
+                      hintText: 'z.B. 0 für Zurücksetzen',
                       border: const OutlineInputBorder(),
                       suffixText: 'Bytes',
                       helperText: fileSize > 0
-                          ? 'Max: $maxOffset Bytes (DateigrÃ¶ÃŸe: $fileSize - 100)'
-                          : 'Achtung: Falsche Werte kÃ¶nnen EntschlÃ¼sselung beeintrÃ¤chtigen',
+                          ? 'Max: $maxOffset Bytes (Dateigröße: $fileSize - 100)'
+                          : 'Achtung: Falsche Werte können Entschlüsselung beeinträchtigen',
                       helperStyle: TextStyle(
                           color: fileSize > 0
                               ? Colors.blue.shade600
@@ -278,7 +278,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                           onPressed: () {
                             offsetController.text = '0';
                           },
-                          child: const Text('ZurÃ¼cksetzen auf 0',
+                          child: const Text('Zurücksetzen auf 0',
                               overflow: TextOverflow.ellipsis),
                         ),
                       ),
@@ -298,9 +298,9 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                 },
               ),
 
-              // â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+              // ─────────────────────────────────────────────────────────────
               // EC-Datei Sektion - nur bei One-Time-Pad
-              // â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+              // �"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"��"�
               if (tempEncryptionType ==
                   qgap_model.EncryptionType.oneTimePad) ...[
                 const SizedBox(height: 20),
@@ -313,7 +313,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Optionaler Zusatz-SchlÃ¼ssel fÃ¼r diesen Chat.',
+                  'Optionaler Zusatz-Schlüssel für diesen Chat.',
                   style: TextStyle(
                       fontSize: 11,
                       color: Colors.grey.shade600,
@@ -363,7 +363,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                       DropdownButton<String?>(
                         value: tempEcFile,
                         isExpanded: true,
-                        hint: const Text('â€” keine EC-Datei â€”'),
+                        hint: const Text('— keine EC-Datei —'),
                         selectedItemBuilder: (ctx) {
                           final items = <String?>[
                             null,
@@ -373,7 +373,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                             return Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                f ?? 'â€” keine EC-Datei â€”',
+                                f ?? '— keine EC-Datei —',
                                 overflow: TextOverflow.ellipsis,
                                 maxLines: 1,
                               ),
@@ -383,7 +383,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                         items: [
                           const DropdownMenuItem<String?>(
                             value: null,
-                            child: Text('â€” keine EC-Datei â€”',
+                            child: Text('— keine EC-Datei —',
                                 style: TextStyle(
                                     fontStyle: FontStyle.italic,
                                     color: Colors.grey)),
@@ -402,7 +402,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                         Padding(
                           padding: const EdgeInsets.only(top: 4.0),
                           child: Text(
-                            'GewÃ¤hlt: $tempEcFile',
+                            'Gewählt: $tempEcFile',
                             style: TextStyle(
                                 fontSize: 11, color: Colors.green.shade700),
                           ),
@@ -411,20 +411,20 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                   ),
               ], // end if oneTimePad
 
-              // ────────────────────────────────────────────────────────────────────
-              // RSA-Schlüsselaustausch-Sektion (nur bei Hybrid)
-              // ────────────────────────────────────────────────────────────────────
+              // --------------------------------------------------------------------
+              // RSA-Schl�sselaustausch-Sektion (nur bei Hybrid)
+              // --------------------------------------------------------------------
               if (tempEncryptionType == qgap_model.EncryptionType.hybrid) ...[
                 const SizedBox(height: 20),
                 const Divider(),
                 const SizedBox(height: 10),
                 const Text(
-                  'RSA-Schlüsselaustausch:',
+                  'RSA-Schl�sselaustausch:',
                   style: TextStyle(fontWeight: FontWeight.bold),
                 ),
                 const SizedBox(height: 8),
 
-                // Status: Kontakt-Schlüssel
+                // Status: Kontakt-Schl�ssel
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -457,7 +457,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                                 crossAxisAlignment: CrossAxisAlignment.start,
                                 children: [
                                   Text(
-                                    'Öffentlicher Schlüssel gespeichert',
+                                    '�ffentlicher Schl�ssel gespeichert',
                                     style: TextStyle(
                                       fontSize: 12,
                                       fontWeight: FontWeight.w600,
@@ -476,8 +476,8 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                                 ],
                               )
                             : Text(
-                                'Kein öffentlicher Schlüssel des Kontakts gespeichert.\n'
-                                'Schlüssel des Gegenübers scannen, um Nachrichten senden zu können.',
+                                'Kein �ffentlicher Schl�ssel des Kontakts gespeichert.\n'
+                                'Schl�ssel des Gegen�bers scannen, um Nachrichten senden zu k�nnen.',
                                 style: TextStyle(
                                   fontSize: 11,
                                   color: Colors.orange.shade800,
@@ -489,7 +489,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                 ),
                 const SizedBox(height: 12),
 
-                // Schlüssel des Kontakts scannen
+                // Schl�ssel des Kontakts scannen
                 SizedBox(
                   width: double.infinity,
                   child: ElevatedButton.icon(
@@ -500,7 +500,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                             child: CircularProgressIndicator(strokeWidth: 2),
                           )
                         : const Icon(Icons.qr_code_scanner),
-                    label: const Text('Schlüssel des Kontakts scannen'),
+                    label: const Text('Schl�ssel des Kontakts scannen'),
                     onPressed: _scanningPublicKey
                         ? null
                         : () async {
@@ -520,18 +520,18 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                 ),
                 const SizedBox(height: 8),
 
-                // Eigenen Schlüssel als QR anzeigen
+                // Eigenen Schl�ssel als QR anzeigen
                 SizedBox(
                   width: double.infinity,
                   child: OutlinedButton.icon(
                     icon: const Icon(Icons.qr_code),
-                    label: const Text('Meinen Schlüssel als QR anzeigen'),
+                    label: const Text('Meinen Schl�ssel als QR anzeigen'),
                     onPressed: widget.onShowMyPublicKey,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  'Der Gegenüber scannt diesen QR-Code, um dir verschlüsselte Nachrichten senden zu können.',
+                  'Der Gegen�ber scannt diesen QR-Code, um dir verschl�sselte Nachrichten senden zu k�nnen.',
                   style: TextStyle(
                       fontSize: 10,
                       color: Colors.grey.shade600,
@@ -554,14 +554,14 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
             // Byte-Offset validieren
             int? newOffset = int.tryParse(offsetController.text.trim());
             if (newOffset == null || newOffset < 0) {
-              // UngÃ¼ltiger Byte-Offset
+              // Ungültiger Byte-Offset
               showDialog(
                 context: context,
                 builder: (BuildContext context) {
                   return AlertDialog(
-                    title: const Text('âŒ UngÃ¼ltiger Byte-Offset'),
+                    title: const Text('❌ Ungültiger Byte-Offset'),
                     content: Text(
-                        'Der eingegebene Wert "${offsetController.text}" ist kein gÃ¼ltiger Byte-Offset.\n\n'
+                        'Der eingegebene Wert "${offsetController.text}" ist kein gültiger Byte-Offset.\n\n'
                         'Bitte geben Sie eine positive Zahl oder 0 ein.'),
                     actions: [
                       TextButton(
@@ -575,7 +575,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
               return;
             }
 
-            // PrÃ¼fe ob der Offset die DateigrÃ¶ÃŸe Ã¼berschreitet
+            // Prüfe ob der Offset die Dateigröße überschreitet
             int fileSize = widget.getKeyFileSize(tempSelectedFile);
             int maxAllowedOffset = fileSize - 100; // 100 Bytes Reserve
 
@@ -584,20 +584,20 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
                 context: context,
                 builder: (BuildContext context) {
                   return AlertDialog(
-                    title: const Text('âŒ Byte-Offset zu groÃŸ'),
+                    title: const Text('❌ Byte-Offset zu groß'),
                     content: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                            'Der eingegebene Byte-Offset ist zu groÃŸ fÃ¼r die gewÃ¤hlte Datei:'),
+                            'Der eingegebene Byte-Offset ist zu groß für die gewählte Datei:'),
                         const SizedBox(height: 8),
-                        Text('â€¢ Eingabe: $newOffset Bytes'),
-                        Text('â€¢ DateigrÃ¶ÃŸe: $fileSize Bytes'),
+                        Text('• Eingabe: $newOffset Bytes'),
+                        Text('• Dateigröße: $fileSize Bytes'),
                         Text(
-                            'â€¢ Maximum erlaubt: $maxAllowedOffset Bytes (DateigrÃ¶ÃŸe - 100)'),
+                            '• Maximum erlaubt: $maxAllowedOffset Bytes (Dateigröße - 100)'),
                         const SizedBox(height: 8),
-                        const Text('Bitte wÃ¤hlen Sie einen kleineren Wert.'),
+                        const Text('Bitte wählen Sie einen kleineren Wert.'),
                       ],
                     ),
                     actions: [
@@ -619,7 +619,7 @@ class _SettingsDialogWidgetState extends State<SettingsDialogWidget> {
               return;
             }
 
-            // Speichern – bei Hybrid/RSA keine EC-Datei übergeben
+            // Speichern � bei Hybrid/RSA keine EC-Datei �bergeben
             final ecFileForSave =
                 tempEncryptionType == qgap_model.EncryptionType.oneTimePad
                     ? tempEcFile
