@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=0.5, maximum-scale=5.0, user-scalable=yes, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
+  <title>QGap Liedsession</title>
+
+  <!-- Firebase JS SDK (compat for simplicity) -->
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore-compat.js"></script>
+  <!-- NoSleep.js: Video-Fallback gegen Display-Sleep auf iOS
+       (die Wake-Lock-API ist dort unzuverlässig, v. a. im Home-Bildschirm-Modus) -->
+  <script src="https://cdn.jsdelivr.net/npm/nosleep.js@0.12.0/dist/NoSleep.min.js"></script>
+
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      min-height: 100svh;
+      background: #000;
+      font-family: 'Segoe UI', Arial, sans-serif;
+      overflow: hidden;
+      -webkit-user-select: none;
+      user-select: none;
+    }
+
+    /* ── Slide-Wrapper: Folie immer vollständig sichtbar, Pinch-Zoom möglich ── */
+    #slide-wrapper {
+      display: none;
+      position: fixed;
+      inset: 0;
+      overflow: auto;
+      /* touch-action:none → wir steuern Pinch selbst via touchmove,
+         damit scale() statt Browser-Seiten-Zoom greift */
+      touch-action: none;
+      background: #000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Zoom-Container: enthält Bild oder Text, transform-origin: center */
+    #slide-zoom {
+      transform-origin: center center;
+      width: 100%;
+      height: 100%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    /* ── Text-Anzeige (Liedtext / Start / Pause / Ende) ────────────── */
+
+
+    /* ── Ladescreen ──────────────────────────────────────────────────── */
+    #loading-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+      color: #555;
+      font-size: 16px;
+    }
+
+    .spinner {
+      width: 40px; height: 40px;
+      border: 3px solid #333;
+      border-top-color: #5A07E9;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Fehler-Screen ───────────────────────────────────────────────── */
+    #error-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #1a0000;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      gap: 16px;
+      color: #ff6b6b;
+      font-size: 16px;
+      padding: 32px;
+      text-align: center;
+    }
+
+    #error-screen .icon { font-size: 48px; }
+
+    /* ── Vollbild-Toggle (transparent, unten rechts) ────────────────── */
+    #fs-toggle-btn {
+      position: fixed;
+      bottom: 12px;
+      right: 12px;
+      z-index: 9999;
+      background: transparent;
+      color: rgba(255,255,255,0.40);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 50px;
+      padding: 5px 10px;
+      font-size: 12px;
+      cursor: pointer;
+      -webkit-tap-highlight-color: transparent;
+      transition: opacity 0.2s, background 0.2s;
+      opacity: 0.35;
+    }
+    #fs-toggle-btn:hover, #fs-toggle-btn:active {
+      opacity: 1;
+      background: rgba(255,255,255,0.15);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Lade-Bildschirm -->
+  <div id="loading-screen" style="display:flex">
+    <div class="spinner"></div>
+    <span>Verbinde …</span>
+  </div>
+
+  <!-- Fehler-Bildschirm -->
+  <div id="error-screen">
+    <div class="icon">⚠️</div>
+    <strong>Session nicht gefunden</strong>
+    <p id="error-msg">Der Link ist ungültig oder die Session wurde gelöscht.</p>
+  </div>
+
+  <!-- Slide-Wrapper: Bild oder Liedtext, mit Zoom-Support -->
+  <div id="slide-wrapper">
+    <div id="slide-zoom">
+      <!-- Inhalt wird per JS gesetzt -->
+    </div>
+  </div>
+
+  <!-- Vollbild-Toggle (transparent, unten rechts) -->
+  <button id="fs-toggle-btn">⛶ Vollbild</button>
+
+  <script>
+    // ── Firebase-Konfiguration ─────────────────────────────────────────────
+    // TODO: Ersetze diese Werte mit deiner Firebase-Projektkonfiguration.
+    // Die Werte findest du in der Firebase Console unter Projekteinstellungen.
+    const firebaseConfig = {
+
+      apiKey: "AIzaSyBTvq0OD0cabWjmTBUpyQMerK0qTKF1E5I",
+  authDomain: "QGap-1856d.firebaseapp.com",
+  projectId: "QGap-1856d",
+  storageBucket: "QGap-1856d.firebasestorage.app",
+  messagingSenderId: "347828391849",
+  appId: "1:347828391849:web:452e67a970e5a9b5a83eb8",
+
+
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.firestore();
+    // iOS/Safari: WebChannel-Streams sterben häufig stillschweigend → Updates
+    // kommen verspätet. ForceLongPolling macht den Listener dort zuverlässig
+    // schnell. Andere Browser: Auto-Detect (nur bei Bedarf Long-Polling).
+    const IS_IOS = /iPad|iPhone|iPod/.test(navigator.userAgent)
+      || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+    try {
+      db.settings(IS_IOS
+        ? { experimentalForceLongPolling: true, merge: true }
+        : { experimentalAutoDetectLongPolling: true, merge: true });
+    } catch(_) {}
+
+    // ── URL-Parameter ──────────────────────────────────────────────────────
+    const params  = new URLSearchParams(window.location.search);
+    const SESSION_ID = params.get('id');
+
+    // ── DOM-Elemente ───────────────────────────────────────────────────────
+
+    const loadingScreen = document.getElementById('loading-screen');
+    const errorScreen   = document.getElementById('error-screen');
+    const errorMsg      = document.getElementById('error-msg');
+    const slideWrapper  = document.getElementById('slide-wrapper');
+    const slideZoom     = document.getElementById('slide-zoom');
+
+    let wakeLock      = null;
+    let unsubscribe   = null;
+    let joined        = false;
+    let _zoomLevel    = 1.0;
+    const ZOOM_STEP   = 0.25;
+    const ZOOM_MIN    = 0.25;
+    const ZOOM_MAX    = 5.0;
+
+    // ── Zoom + Pan ────────────────────────────────────────────────────────
+    // Zoom per scale(), Verschieben per translate(). Beim Zoom-Level 1 wird
+    // die Verschiebung zurückgesetzt; der Pan-Bereich ist so begrenzt, dass
+    // die Folie nicht komplett aus dem Bild geschoben werden kann.
+    let _panX = 0, _panY = 0;
+
+    function applyTransform() {
+      if (_zoomLevel === 1) {
+        _panX = 0; _panY = 0;
+        slideZoom.style.transform = '';
+      } else {
+        const maxX = Math.max(0, slideWrapper.clientWidth  * (_zoomLevel - 1) / 2);
+        const maxY = Math.max(0, slideWrapper.clientHeight * (_zoomLevel - 1) / 2);
+        _panX = Math.min(maxX, Math.max(-maxX, _panX));
+        _panY = Math.min(maxY, Math.max(-maxY, _panY));
+        slideZoom.style.transform =
+          `translate(${_panX}px, ${_panY}px) scale(${_zoomLevel})`;
+      }
+      slideZoom.style.transformOrigin = 'center center';
+      slideWrapper.style.cursor = _zoomLevel > 1 ? 'grab' : '';
+    }
+
+    function applyZoom(factor) {
+      _zoomLevel = Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, factor));
+      applyTransform();
+    }
+
+    // Mausrad (Desktop)
+    slideWrapper.addEventListener('wheel', (e) => {
+      e.preventDefault();
+      const delta = e.ctrlKey ? -e.deltaY * 0.01 : (e.deltaY < 0 ? ZOOM_STEP : -ZOOM_STEP);
+      applyZoom(_zoomLevel + delta);
+    }, { passive: false });
+
+    // Maus-Drag zum Verschieben (Desktop, nur wenn gezoomt)
+    let _mouseDrag = false, _mouseStartX = 0, _mouseStartY = 0,
+        _mousePanX = 0, _mousePanY = 0;
+
+    slideWrapper.addEventListener('mousedown', (e) => {
+      if (_zoomLevel <= 1) return;
+      _mouseDrag = true;
+      _mouseStartX = e.clientX; _mouseStartY = e.clientY;
+      _mousePanX = _panX; _mousePanY = _panY;
+      slideWrapper.style.cursor = 'grabbing';
+      e.preventDefault();
+    });
+    window.addEventListener('mousemove', (e) => {
+      if (!_mouseDrag) return;
+      _panX = _mousePanX + (e.clientX - _mouseStartX);
+      _panY = _mousePanY + (e.clientY - _mouseStartY);
+      applyTransform();
+    });
+    window.addEventListener('mouseup', () => {
+      if (_mouseDrag) { _mouseDrag = false; applyTransform(); }
+    });
+
+    // Pinch-Zoom + Ein-Finger-Pan (Touch-Geräte) ─────────────────────────
+    // touch-action:none am Wrapper verhindert Browser-eigenes Pinch-Zoom;
+    // wir berechnen Fingerdistanz (Zoom) und Fingerbewegung (Pan) selbst.
+    let _pinchStartDist = 0;
+    let _pinchStartZoom = 1.0;
+    let _touchPanning   = false;
+    let _touchStartX = 0, _touchStartY = 0, _touchPanX = 0, _touchPanY = 0;
+
+    slideWrapper.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2) {
+        _touchPanning = false;
+        _pinchStartDist = Math.hypot(
+          e.touches[1].clientX - e.touches[0].clientX,
+          e.touches[1].clientY - e.touches[0].clientY
+        );
+        _pinchStartZoom = _zoomLevel;
+        // Pinch-Mittelpunkt als Pan-Startpunkt (Verschieben während Pinch)
+        _touchStartX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        _touchStartY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        _touchPanX = _panX; _touchPanY = _panY;
+      } else if (e.touches.length === 1 && _zoomLevel > 1) {
+        // Ein Finger + gezoomt → Folie verschieben
+        _touchPanning = true;
+        _touchStartX = e.touches[0].clientX;
+        _touchStartY = e.touches[0].clientY;
+        _touchPanX = _panX; _touchPanY = _panY;
+      }
+    }, { passive: true });
+
+    slideWrapper.addEventListener('touchmove', (e) => {
+      if (e.touches.length === 2) {
+        e.preventDefault();  // Browser-Scroll/Zoom unterbinden
+        const dist = Math.hypot(
+          e.touches[1].clientX - e.touches[0].clientX,
+          e.touches[1].clientY - e.touches[0].clientY
+        );
+        // Verschieben mit dem Pinch-Mittelpunkt
+        const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+        const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+        _panX = _touchPanX + (midX - _touchStartX);
+        _panY = _touchPanY + (midY - _touchStartY);
+        if (_pinchStartDist > 0) {
+          applyZoom(_pinchStartZoom * (dist / _pinchStartDist));
+        } else {
+          applyTransform();
+        }
+      } else if (e.touches.length === 1 && _touchPanning) {
+        e.preventDefault();  // Browser-Scroll unterbinden
+        _panX = _touchPanX + (e.touches[0].clientX - _touchStartX);
+        _panY = _touchPanY + (e.touches[0].clientY - _touchStartY);
+        applyTransform();
+      }
+    }, { passive: false });
+
+    slideWrapper.addEventListener('touchend', (e) => {
+      if (e.touches.length < 2) {
+        _pinchStartDist = 0;  // Pinch beendet
+      }
+      if (e.touches.length === 1 && _zoomLevel > 1) {
+        // Von Pinch auf einen Finger gewechselt → nahtlos weiterschieben
+        _touchPanning = true;
+        _touchStartX = e.touches[0].clientX;
+        _touchStartY = e.touches[0].clientY;
+        _touchPanX = _panX; _touchPanY = _panY;
+      } else if (e.touches.length === 0) {
+        _touchPanning = false;
+      }
+    }, { passive: true });
+
+    // ── Hilfsfunktionen ───────────────────────────────────────────────────
+
+    function hideAll() {
+      loadingScreen.style.display = 'none';
+      errorScreen.style.display   = 'none';
+      slideWrapper.style.display  = 'none';
+    }
+
+    function showSlideWrapper() {
+      hideAll();
+      slideWrapper.style.display = 'flex';
+    }
+
+    function show(el, displayType) {
+      hideAll();
+      el.style.display = displayType || 'flex';
+    }
+
+    function hexToRgba(hex, alpha) {
+      const r = parseInt(hex.slice(1,3),16);
+      const g = parseInt(hex.slice(3,5),16);
+      const b = parseInt(hex.slice(5,7),16);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    // ── Orientierung sperren ──────────────────────────────────────────────
+    function lockOrientation(orientation) {
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock(orientation).catch(() => {});
+      }
+    }
+
+    // ── Wake Lock ─────────────────────────────────────────────────────────
+    // iOS: Die native Wake-Lock-API ist dort unzuverlässig (Display geht trotz
+    // Lock aus, v. a. als Home-Bildschirm-App). Daher wird auf iOS NoSleep.js
+    // mit Video-Fallback benutzt: Ein unsichtbares Mini-Video in Schleife hält
+    // das Display zuverlässig an. Das Video darf erst nach einer User-Geste
+    // starten (iOS-Richtlinie) → erste Berührung/Klick aktiviert es.
+    let _noSleep   = null;
+    let _noSleepOn = false;
+
+    if (IS_IOS && typeof NoSleep !== 'undefined') {
+      try {
+        // Native API vor NoSleep verstecken → NoSleep nutzt den Video-Fallback.
+        // WICHTIG: NoSleep prüft mit ("wakeLock" in navigator) – dafür muss
+        // die Property wirklich vom Prototyp GELÖSCHT werden (defineProperty
+        // mit value:undefined reicht nicht, 'in' bliebe true).
+        delete Navigator.prototype.wakeLock;
+        delete navigator.wakeLock;
+      } catch(_) {}
+      _noSleep = new NoSleep();
+
+      const enableNoSleep = () => {
+        if (_noSleepOn) return;
+        try {
+          Promise.resolve(_noSleep.enable()).then(() => {
+            // Erfolgreich aktiviert → Hinweis entfernen
+            _noSleepOn = true;
+            const h = document.getElementById('ios-wake-hint');
+            if (h) h.remove();
+          }).catch(() => {});  // fehlgeschlagen → nächster Tipp versucht es erneut
+        } catch(_) {}
+      };
+      // Erste Berührung/Klick irgendwo auf der Seite aktiviert den Fallback
+      document.addEventListener('touchend', enableNoSleep, true);
+      document.addEventListener('click',    enableNoSleep, true);
+      // Nach Tab-Wechsel/Entsperren: Video läuft evtl. nicht mehr → neu starten
+      document.addEventListener('visibilitychange', () => {
+        if (document.visibilityState === 'visible' && _noSleepOn) {
+          try {
+            Promise.resolve(_noSleep.enable()).catch(() => { _noSleepOn = false; });
+          } catch(_) { _noSleepOn = false; }
+        }
+      });
+      // Dezenter Hinweis bis zur ersten Berührung (unten links,
+      // Vollbild-Button bleibt unten rechts)
+      const hint = document.createElement('div');
+      hint.id = 'ios-wake-hint';
+      hint.textContent = '👆 AN';
+      hint.style.cssText =
+        'position:fixed;bottom:16px;left:16px;' +
+        'z-index:9998;background:rgba(0,0,0,0.7);color:#ddd;font-size:13px;' +
+        'padding:8px 14px;border-radius:50px;pointer-events:none;white-space:nowrap;';
+      document.body.appendChild(hint);
+    }
+
+    async function requestWakeLock() {
+      if (IS_IOS) return;  // iOS: NoSleep-Video-Fallback (siehe oben)
+      if ('wakeLock' in navigator && navigator.wakeLock) {
+        try {
+          wakeLock = await navigator.wakeLock.request('screen');
+        } catch(e) {
+          console.warn('Wake Lock nicht verfügbar:', e);
+        }
+      }
+    }
+    // Sichtbarkeits-Listener EINMAL registrieren (vorher wurde er bei jedem
+    // requestWakeLock-Aufruf erneut hinzugefügt)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && joined) requestWakeLock();
+    });
+
+    // ── Vollbild-Toggle (unten rechts, transparent) ──────────────────────
+    const fsToggleBtn = document.getElementById('fs-toggle-btn');
+
+    // iPhone-Safari unterstützt die Fullscreen-API nicht (nur iPad).
+    // Echtes Vollbild gibt es dort nur als Home-Bildschirm-App (standalone).
+    const FS_SUPPORTED = !!(document.documentElement.requestFullscreen
+      || document.documentElement.webkitRequestFullscreen
+      || document.documentElement.mozRequestFullScreen
+      || document.documentElement.msRequestFullscreen);
+    const IS_STANDALONE = window.navigator.standalone === true
+      || (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches);
+
+    // Läuft bereits als Home-Bildschirm-App → ist schon Vollbild, Button weg
+    if (IS_STANDALONE) fsToggleBtn.style.display = 'none';
+
+    function isFullscreen() {
+      return !!(document.fullscreenElement
+        || document.webkitFullscreenElement
+        || document.mozFullScreenElement
+        || document.msFullscreenElement);
+    }
+
+    function exitFullscreenNow() {
+      const doc = document;
+      if      (doc.exitFullscreen)           doc.exitFullscreen();
+      else if (doc.webkitExitFullscreen)     doc.webkitExitFullscreen();
+      else if (doc.mozCancelFullScreen)      doc.mozCancelFullScreen();
+      else if (doc.msExitFullscreen)         doc.msExitFullscreen();
+    }
+
+    function onFullscreenChange() {
+      fsToggleBtn.textContent = isFullscreen() ? '✕ Vollbild beenden' : '⛶ Vollbild';
+    }
+
+    document.addEventListener('fullscreenchange',       onFullscreenChange);
+    document.addEventListener('webkitfullscreenchange', onFullscreenChange);
+    document.addEventListener('mozfullscreenchange',    onFullscreenChange);
+    document.addEventListener('MSFullscreenChange',     onFullscreenChange);
+
+    // iPhone: Hinweis anzeigen wie man echtes Vollbild bekommt
+    function showIosFullscreenHint() {
+      if (document.getElementById('ios-fs-hint')) return;
+      const overlay = document.createElement('div');
+      overlay.id = 'ios-fs-hint';
+      overlay.style.cssText = [
+        'position:fixed', 'inset:0', 'z-index:10000',
+        'background:rgba(0,0,0,0.85)',
+        'display:flex', 'flex-direction:column',
+        'justify-content:center', 'align-items:center',
+        'padding:32px', 'text-align:center', 'gap:16px',
+      ].join(';');
+      overlay.innerHTML =
+        '<div style="font-size:40px">⛶</div>' +
+        '<div style="color:#fff;font-size:17px;font-weight:bold">Vollbild auf dem iPhone</div>' +
+        '<div style="color:#ccc;font-size:15px;line-height:1.6;max-width:340px">' +
+        'Safari erlaubt auf dem iPhone kein Vollbild per Knopfdruck.<br><br>' +
+        'So geht es trotzdem:<br>' +
+        '1. Unten das <b>Teilen-Symbol</b> <span style="font-size:18px">&#x2BAD;</span> antippen<br>' +
+        '2. <b>„Zum Home-Bildschirm"</b> wählen<br>' +
+        '3. Die Seite vom <b>Home-Bildschirm</b> öffnen<br>' +
+        '→ läuft dann automatisch im Vollbild' +
+        '</div>' +
+        '<button id="ios-fs-hint-close" style="margin-top:8px;background:rgba(255,255,255,0.15);' +
+        'color:#fff;border:1px solid rgba(255,255,255,0.3);border-radius:50px;' +
+        'padding:10px 28px;font-size:15px;cursor:pointer">OK</button>';
+      document.body.appendChild(overlay);
+      const close = () => overlay.remove();
+      document.getElementById('ios-fs-hint-close').addEventListener('click', close);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) close(); });
+    }
+
+    fsToggleBtn.addEventListener('click', () => {
+      if (!FS_SUPPORTED) {
+        // iPhone: Fullscreen-API fehlt → Anleitung zeigen
+        showIosFullscreenHint();
+      } else if (isFullscreen()) {
+        exitFullscreenNow();
+      } else {
+        requestFullscreen();
+      }
+      // User-Geste nutzen um Wake Lock (erneut) anzufordern
+      requestWakeLock();
+    });
+
+    // ── Vollbild ──────────────────────────────────────────────────────────
+    function requestFullscreen() {
+      const el = document.documentElement;
+      if (el.requestFullscreen)             el.requestFullscreen().catch(()=>{});
+      else if (el.webkitRequestFullscreen)  el.webkitRequestFullscreen();
+      else if (el.mozRequestFullScreen)     el.mozRequestFullScreen();
+      else if (el.msRequestFullscreen)      el.msRequestFullscreen();
+    }
+
+    // ── Config (Text) anzeigen ──────────────────────────────────────────────
+    function showConfig(config) {
+      if (!config) return;
+      // Frischen Container bauen – kein altes DOM wiederverwenden
+      const box = document.createElement('div');
+      box.style.cssText = [
+        'display:flex', 'width:100%', 'height:100%',
+        'background:' + (config.bgColor || '#1A1A2E'),
+        'flex-direction:column',
+        'justify-content:center', 'align-items:center',
+        'padding:40px', 'text-align:center',
+      ].join(';');
+      const el = document.createElement('p');
+      el.textContent = config.text || '';
+      el.style.cssText = [
+        'color:'      + (config.textColor || '#FFFFFF'),
+        'font-size:'  + (config.fontSize  || 48) + 'px',
+        'line-height:1.4',
+        'white-space:pre-line',
+        'text-shadow:0 2px 8px rgba(0,0,0,0.6)',
+      ].join(';');
+      box.appendChild(el);
+      slideZoom.innerHTML = '';
+      slideZoom.appendChild(box);
+      showSlideWrapper();
+    }
+
+    // ── Liedtext-Folie anzeigen (Text-Payload, füllt Bildschirm) ─────────────
+    // Schriftgrößen-Modi:
+    //   'auto'    (default) – pro Folie so groß wie möglich (_fitFontSize)
+    //   'uniform'           – minimale Größe über alle bisherigen Folien tracken
+    //   'fixed'             – payload.fontSize direkt verwenden
+    let _sessionMinFontSize = 9999; // wird für 'uniform' nach unten gezogen
+
+    function showTextSlide(payload, orientation) {
+      applyZoom(1.0);
+
+      // Frischen Container bauen – kein altes DOM wiederverwenden
+      const box = document.createElement('div');
+      box.style.cssText = [
+        'display:flex', 'width:100%', 'height:100%',
+        'background:' + (payload.bgColor || '#0D1B2A'),
+        'flex-direction:column',
+        'justify-content:center', 'align-items:center',
+        'padding:5vmin 6vmin',
+        'text-align:center', 'overflow:hidden',
+      ].join(';');
+
+      slideZoom.innerHTML = '';
+      slideZoom.appendChild(box);
+      showSlideWrapper();
+
+      if (!payload.text) return;
+
+      const el = document.createElement('p');
+      el.textContent = payload.text;
+      el.style.cssText = [
+        'color:'          + (payload.textColor || '#FFFFFF'),
+        'line-height:1.55',
+        'white-space:pre',
+        'text-shadow:0 2px 8px rgba(0,0,0,0.6)',
+        'width:100%',
+        'margin:0',
+      ].join(';');
+      box.appendChild(el);
+
+      const mode = payload.textSizeMode || 'auto';
+
+      // Erste Liedfolie: Lied-Titel oben auf der Folie (gelb, fett)
+      if (mode !== 'titleSlide' && payload.showSongTitle && payload.songTitle) {
+        const songTitleEl = document.createElement('p');
+        songTitleEl.textContent = payload.songTitle;
+        songTitleEl.style.cssText = [
+          'color:#FFDD00',
+          'font-weight:bold',
+          'font-size:6vmin',
+          'line-height:1.2',
+          'margin:0 0 2vmin 0',
+          'width:100%',
+          'white-space:nowrap',
+          'overflow:hidden',
+          'text-overflow:ellipsis',
+          'flex-shrink:0',
+          'text-shadow:0 2px 8px rgba(0,0,0,0.6)',
+        ].join(';');
+        box.insertBefore(songTitleEl, el);
+      }
+
+      if (mode === 'titleSlide') {
+        // ── Titelfolie: songTitle gelb+groß, text weiß+klein ──────────────
+        const titleEl = document.createElement('p');
+        titleEl.textContent = payload.songTitle || '';
+        titleEl.style.cssText = [
+          'color:#FFDD00',
+          'font-weight:bold',
+          'line-height:1.15',
+          'white-space:pre-line',
+          'text-shadow:0 2px 8px rgba(0,0,0,0.6)',
+          'width:100%',
+          'margin:0',
+          'flex-shrink:0',
+        ].join(';');
+        box.appendChild(titleEl);
+        _fitFontSize(titleEl, box);
+
+        if (payload.text) {
+          const metaEl = document.createElement('p');
+          metaEl.textContent = payload.text;
+          metaEl.style.cssText = [
+            'color:#FFFFFF',
+            'font-size:13px',
+            'line-height:1.5',
+            'white-space:pre-line',
+            'margin-top:14px',
+            'opacity:0.85',
+          ].join(';');
+          box.appendChild(metaEl);
+        }
+        box.removeChild(el);  // el wurde schon hinzugefügt, nicht mehr gebraucht
+        return;
+      }
+      if (mode === 'fixed') {
+        el.style.fontSize = Math.max(8, payload.fontSize || 48) + 'px';
+      } else if (mode === 'uniform') {
+        _fitFontSize(el, box);
+        const idealSize = parseInt(el.style.fontSize, 10) || 8;
+        _sessionMinFontSize = Math.min(_sessionMinFontSize, idealSize);
+        el.style.fontSize = _sessionMinFontSize + 'px';
+      } else {
+        _fitFontSize(el, box);
+      }
+    }
+
+    // Binärsuche: größte Schrift finden bei der kein Scrollbalken entsteht
+    function _fitFontSize(el, container) {
+      let lo = 8, hi = 200, best = lo;
+      for (let i = 0; i < 20; i++) {
+        const mid = Math.round((lo + hi) / 2);
+        el.style.fontSize = mid + 'px';
+        if (container.scrollHeight <= container.clientHeight + 2
+            && container.scrollWidth  <= container.clientWidth  + 2) {
+          best = mid;
+          lo = mid + 1;
+        } else {
+          hi = mid - 1;
+        }
+      }
+      el.style.fontSize = best + 'px';
+    }
+
+    // ── Folienbild anzeigen (Base64-Data-URI) ─────────────────────────────
+    function showSlide(dataUri) {
+      applyZoom(1.0);
+      // Placeholder-Div sofort einhängen (verhindert leeren Bildschirm beim Laden)
+      const placeholder = document.createElement('div');
+      placeholder.style.cssText = 'width:100%;height:100%;background:#000;';
+      slideZoom.innerHTML = '';
+      slideZoom.appendChild(placeholder);
+      showSlideWrapper();
+
+      if (!dataUri) return;
+
+      // Bild vorladen; dann placeholder durch Bild ersetzen
+      const img = new Image();
+      img.onload = () => {
+        // Nur ersetzen wenn slideZoom noch denselben placeholder enthält
+        // (Folie könnte inzwischen gewechselt sein)
+        if (slideZoom.contains(placeholder)) {
+          img.style.cssText = 'max-width:100%;max-height:100%;object-fit:contain;display:block;';
+          slideZoom.innerHTML = '';
+          slideZoom.appendChild(img);
+        }
+      };
+      img.src = dataUri;
+    }
+
+    // ── Firestore Echtzeit-Listener ───────────────────────────────────────
+    // _lastListenerEvent: Zeitstempel des letzten onSnapshot-Callbacks.
+    // Der Watchdog nutzt ihn, um tote Listener zu erkennen und neu zu starten.
+    let _lastListenerEvent = 0;
+
+    function _subscribeListener() {
+      if (unsubscribe) { try { unsubscribe(); } catch(_) {} unsubscribe = null; }
+      const docRef = db.collection('public_screens').doc(SESSION_ID);
+      unsubscribe = docRef.onSnapshot(
+        { includeMetadataChanges: true },
+        (snap) => {
+          // Nur Server-bestätigte Snapshots zählen als Lebenszeichen – ein toter
+          // Transport liefert nach dem Entsperren nur noch Cache-Snapshots und
+          // würde sonst den Watchdog täuschen.
+          if (!snap.metadata.fromCache) _lastListenerEvent = Date.now();
+          if (!snap.exists) {
+            // NICHT sofort Fehler zeigen: Nach längerer Pause liefert das SDK
+            // manchmal einen leeren Cache-Snapshot obwohl die Session existiert.
+            // REST-Check entscheidet (zeigt Fehler nur bei echtem 404).
+            fetchViaRest();
+            return;
+          }
+          handleUpdate(snap.data());
+        },
+        (err) => {
+          // NICHT sofort Fehler zeigen – REST-Polling übernimmt, Listener wird
+          // vom Watchdog neu gestartet.
+          console.warn('Firestore-Listener-Fehler (Neustart folgt):', err);
+          _lastListenerEvent = 0;
+        }
+      );
+    }
+
+    function startListener() {
+      if (!SESSION_ID) {
+        showError('Kein Session-ID im Link gefunden.');
+        return;
+      }
+
+      show(loadingScreen, 'flex');
+      _lastDocHash = '';  // Reset damit erster Update immer angezeigt wird
+      _lastListenerEvent = Date.now();
+
+      _subscribeListener();
+
+      // Polling als Fallback starten (fängt tote WebSockets auf – Android+iOS)
+      _startPolling();
+    }
+
+    function showError(msg) {
+      show(errorScreen, 'flex');
+      errorMsg.textContent = msg;
+    }
+
+    // ── Update-Logik (zentral, wird von Listener UND Polling gerufen) ─────────
+    // _docHash erkennt ob sich der Folieninhalt geändert hat → kein Flackern
+    let _lastDocHash = '';
+
+    function _docHash(d) {
+      if (!d) return '';
+      const imgTail = d.currentImageData ? d.currentImageData.slice(-24) : '';
+      const text    = d.slidePayload ? (d.slidePayload.text || '').substring(0, 100) : '';
+      return `${d.state}|${d.slideType || ''}|${text}|${imgTail}`;
+    }
+
+    function handleUpdate(d) {
+      if (!d) return;
+      const hash = _docHash(d);
+      if (hash === _lastDocHash) return;  // keine Änderung → nicht neu zeichnen
+      _lastDocHash = hash;
+
+      lockOrientation(d.orientation || 'landscape');
+
+      switch (d.state) {
+        case 'active':
+          if (d.slideType === 'text' && d.slidePayload) {
+            showTextSlide(d.slidePayload, d.orientation || 'landscape');
+          } else {
+            showSlide(d.currentImageData);
+          }
+          break;
+        case 'pause':
+          showConfig(d.pauseConfig);
+          break;
+        case 'ended':
+          showConfig(d.endConfig);
+          break;
+        case 'start':
+        default:
+          showConfig(d.startConfig);
+          break;
+      }
+    }
+
+    // ── iOS/Android Fix: Verbindungs-Wiederherstellung ────────────────────────
+    // Mobile Browser frieren Firestore-WebSockets ein (Tab-Wechsel, Bildschirm-
+    // sperre, Doze-Mode, Netzwerkwechsel). Zwei Wege zurück zum Live-Zustand:
+    // 1. fetchFromServer(): SDK-Weg (enableNetwork + get)
+    // 2. fetchViaRest():   REST-API – völlig unabhängig vom SDK-Socket,
+    //                      funktioniert auch wenn das SDK intern hängt.
+    async function fetchFromServer() {
+      if (!joined || !SESSION_ID) return;
+      try {
+        await db.enableNetwork();
+        const snap = await db.collection('public_screens').doc(SESSION_ID)
+          .get({ source: 'server' });
+        if (snap.exists) handleUpdate(snap.data());
+      } catch (_) {}
+    }
+
+    // Harter Reconnect: reißt den internen Firestore-Transport ab und baut ihn
+    // neu auf. Nötig auf iOS: Nach Bildschirmsperre ist der Long-Polling-Stream
+    // tot, das SDK merkt es aber nicht – bloßes Neu-Abonnieren hängt am selben
+    // kaputten Stream und Updates kämen nur noch übers 2s-REST-Polling.
+    let _reconnecting = false;
+    async function _hardReconnect() {
+      if (_reconnecting || !joined) return;
+      _reconnecting = true;
+      try { await db.disableNetwork(); } catch (_) {}
+      try { await db.enableNetwork();  } catch (_) {}
+      _reconnecting = false;
+      _lastListenerEvent = Date.now();
+      _subscribeListener();
+    }
+
+    // Firestore-REST-Wert → einfaches JS-Objekt
+    function _fromRestValue(v) {
+      if (v == null) return null;
+      if (v.stringValue  !== undefined) return v.stringValue;
+      if (v.integerValue !== undefined) return parseInt(v.integerValue, 10);
+      if (v.doubleValue  !== undefined) return v.doubleValue;
+      if (v.booleanValue !== undefined) return v.booleanValue;
+      if (v.nullValue    !== undefined) return null;
+      if (v.timestampValue !== undefined) return v.timestampValue;
+      if (v.mapValue     !== undefined) {
+        const o = {}, f = v.mapValue.fields || {};
+        for (const k in f) o[k] = _fromRestValue(f[k]);
+        return o;
+      }
+      if (v.arrayValue !== undefined)
+        return (v.arrayValue.values || []).map(_fromRestValue);
+      return undefined;
+    }
+
+    // REST-Fetch mit hartem 4s-Timeout – kann nie "hängen bleiben".
+    // Zeigt den Fehler-Screen NUR bei bestätigtem 404 (Session wirklich weg).
+    let _restInFlight = false;
+    async function fetchViaRest() {
+      if (!joined || !SESSION_ID || _restInFlight) return false;
+      _restInFlight = true;
+      const ctrl = new AbortController();
+      const timer = setTimeout(() => ctrl.abort(), 4000);
+      try {
+        const url = 'https://firestore.googleapis.com/v1/projects/'
+          + firebaseConfig.projectId
+          + '/databases/(default)/documents/public_screens/' + SESSION_ID
+          + '?key=' + firebaseConfig.apiKey;
+        const res = await fetch(url, { signal: ctrl.signal, cache: 'no-store' });
+        if (res.status === 404) {
+          // Session wurde wirklich gelöscht → jetzt Fehler anzeigen
+          showError('Session wurde beendet oder gelöscht.');
+          return false;
+        }
+        if (!res.ok) return false;
+        const json = await res.json();
+        if (!json.fields) return false;
+        const d = {};
+        for (const k in json.fields) d[k] = _fromRestValue(json.fields[k]);
+        handleUpdate(d);
+        return true;
+      } catch (_) {
+        return false;
+      } finally {
+        clearTimeout(timer);
+        _restInFlight = false;
+      }
+    }
+
+    // Sichtbarkeit ändert sich (Tab aktiv / Gerät entsperrt)
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible' && joined) {
+        fetchViaRest();      // sofort aktuelle Folie holen (unabhängig vom SDK)
+        _hardReconnect();    // Realtime-Stream wirklich neu aufbauen (iOS!)
+      }
+    });
+
+    // Netzwerk wieder da (WLAN↔Mobilfunk-Wechsel)
+    window.addEventListener('online', () => {
+      if (joined) {
+        fetchViaRest();
+        _hardReconnect();
+      }
+    });
+
+    // iOS bfcache: Seite per Vor/Zurück-Navigation aus Cache wiederhergestellt
+    // → WebSocket-Verbindung ist tot, Listener neu starten
+    window.addEventListener('pageshow', (e) => {
+      if (e.persisted && joined) {
+        _lastDocHash = '';
+        startListener();
+      }
+    });
+
+    // ── Polling + Watchdog ─────────────────────────────────────────────────────
+    // Alle 2 s REST-Fetch (unabhängig vom SDK → kann nicht hängen).
+    // Watchdog: kein Listener-Event seit 45 s → Listener neu aufbauen.
+    let _pollTimer = null;
+    function _startPolling() {
+      if (_pollTimer) clearInterval(_pollTimer);
+      _pollTimer = setInterval(() => {
+        if (!joined) return;
+        fetchViaRest();
+        // Watchdog: SDK-Listener tot? → harter Reconnect
+        if (_lastListenerEvent > 0 && Date.now() - _lastListenerEvent > 45000) {
+          console.warn('Watchdog: Listener seit 45s still – harter Reconnect');
+          _lastListenerEvent = Date.now();  // Doppel-Restart verhindern
+          _hardReconnect();
+        }
+        // Wake Lock verloren oder nie bekommen? → neu anfordern
+        // (vorher nur bei wakeLock && released → fehlgeschlagene Erst-
+        //  Anforderung wurde nie wiederholt)
+        if (!IS_IOS && (!wakeLock || wakeLock.released)) {
+          requestWakeLock();
+        }
+      }, 2000);
+    }
+
+    // ── Auto-Start: sofort verbinden, kein Join-Button nötig ──────────────
+    // Vollbild braucht eine User-Geste → über den Toggle unten rechts.
+    // Listener + Wake Lock brauchen keine Geste.
+    if (SESSION_ID) {
+      joined = true;
+      startListener();
+      requestWakeLock();
+    } else {
+      showError('Ungültiger Link – keine Session-ID gefunden.');
+    }
+  </script>
+</body>
+</html>

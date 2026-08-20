@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Datenschutzerklärung – QGap</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --bg:#0f1a14; --card:#16241c; --accent:#2ecc71; --text:#e8f2ec; --muted:#9db8a9; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; }
+  .wrap { max-width:800px; margin:0 auto; padding:20px; }
+  header { padding:10px 0 26px; display:flex; justify-content:space-between; align-items:center; }
+  .logo { font-size:1.3rem; font-weight:700; color:var(--accent); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:16px; }
+  h1 { font-size:1.8rem; margin-bottom:6px; }
+  h2 { color:var(--accent); font-size:1.25rem; margin:30px 0 10px; }
+  p, li { color:var(--muted); margin-bottom:10px; }
+  ul { padding-left:22px; }
+  .stand { font-size:.9rem; color:var(--muted); margin-bottom:24px; }
+  a { color:var(--accent); }
+  footer { border-top:1px solid #223529; margin-top:50px; padding:20px 0; color:var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="logo">🔐 QGap</div>
+  <nav>
+    <a href="index.html">Startseite</a>
+    <a href="privacy.html">English</a>
+  </nav>
+</header>
+
+<h1>Datenschutzerklärung</h1>
+<p class="stand">für die App „QGap" (Android, Windows) und die Website con2.net/qgap<br>Stand: August 2026</p>
+
+<h2>1. Verantwortlicher</h2>
+<p>Markus Mühlnickel<br>
+c/o ReAuTec GmbH<br>
+Kalteiche Ring 31<br>
+35708 Haiger, Deutschland<br>
+E-Mail: <a href="mailto:paulprog@abwesend.de">paulprog@abwesend.de</a></p>
+
+<h2>2. Grundprinzip: Datenvermeidung</h2>
+<p>QGap ist so entworfen, dass so wenig personenbezogene Daten wie möglich anfallen:</p>
+<ul>
+  <li>Es gibt <strong>kein Benutzerkonto</strong> mit Name, Telefonnummer oder E-Mail-Adresse.</li>
+  <li>Nachrichten werden auf dem Gerät mit einem <strong>One-Time-Pad Ende-zu-Ende verschlüsselt</strong>. Der Klartext verlässt das Gerät nie.</li>
+  <li>Schlüsseldateien werden <strong>ausschließlich lokal</strong> gespeichert und niemals an uns oder Dritte übertragen.</li>
+  <li>Im reinen <strong>Offline-/Air-Gap-Betrieb</strong> (QR-Code- oder USB-Übertragung) findet überhaupt keine Datenübertragung über das Internet statt.</li>
+</ul>
+
+<h2>3. Lokal auf Ihrem Gerät gespeicherte Daten</h2>
+<p>Chats, Nachrichten, Schlüsseldateien, Einstellungen und empfangene Dateien werden ausschließlich lokal auf Ihrem Gerät gespeichert (Android: App-Datenordner bzw. von Ihnen gewählter Ordner; Windows: von Ihnen gewählter Datenordner). Diese Daten unterliegen allein Ihrer Kontrolle; wir haben darauf keinen Zugriff. Beim Löschen der App bzw. der Datenordner werden sie entfernt.</p>
+
+<h2>4. Optionale Online-Funktion (Cloud-Transport)</h2>
+<p>Nur wenn Sie die Online-Funktion aktiv nutzen (Online-Einladung/Cloud-Sync), verarbeitet die App folgende Daten über den Dienst <strong>Google Firebase</strong> (Google Ireland Ltd., Gordon House, Barrow Street, Dublin 4, Irland):</p>
+<ul>
+  <li><strong>Anonyme Authentifizierung</strong> (Firebase Authentication): Es wird eine zufällige, anonyme Nutzer-ID (UID) erzeugt. Es werden keine Namen, E-Mail-Adressen oder Telefonnummern erhoben.</li>
+  <li><strong>Nachrichtentransport</strong> (Cloud Firestore): Übertragen und zwischengespeichert werden ausschließlich <em>verschlüsselte</em> Nachrichteninhalte (One-Time-Pad-Chiffrat, für den Betreiber und Google nicht lesbar) sowie technische Metadaten (anonyme UID der Chat-Teilnehmer, Zeitstempel, Chat-ID).</li>
+  <li><strong>Asymmetrische/hybride Verschlüsselung:</strong> Als Alternative zum One-Time-Pad – wenn ein persönlicher Austausch der Schlüsseldatei nicht möglich oder zu aufwendig ist – wird ein Hybrid-Verfahren eingesetzt: Die Inhalte werden mit <strong>AES-256 im GCM-Modus</strong> verschlüsselt; der dafür jeweils zufällig erzeugte AES-Schlüssel wird mit dem öffentlichen <strong>RSA-Schlüssel (2048 Bit)</strong> des Empfängers verschlüsselt. Der private RSA-Schlüssel verlässt das Gerät des Empfängers nie; weder der Betreiber noch Google können die Inhalte entschlüsseln.</li>
+  <li><strong>Dateianhänge</strong> (Firebase Storage): auch diese nur in verschlüsselter Form.</li>
+  <li><strong>Präsentationsfunktion (öffentlicher Bildschirm):</strong> Wenn Sie eine Präsentation (z. B. Liedtexte, Bilder) erstellen und teilen, werden deren Inhalte über Cloud Firestore bzw. Firebase Storage an die Anzeigegeräte übertragen. Diese Inhalte sind – anders als Chat-Nachrichten – <em>nicht</em> verschlüsselt, da sie für jeden mit dem Anzeige-Link bzw. QR-Code sichtbar sein sollen. Stellen Sie daher keine vertraulichen oder personenbezogenen Inhalte in Präsentationen ein. Die Inhalte verbleiben in der Cloud, bis die Sitzung gelöscht wird.</li>
+</ul>
+<p><strong>Rechtsgrundlage:</strong> Art. 6 Abs. 1 lit. b DSGVO (Bereitstellung der von Ihnen gewünschten Funktion).</p>
+<p><strong>Drittlandübermittlung:</strong> Firebase kann Daten auf Servern in den USA verarbeiten. Google LLC ist unter dem <strong>EU-US Data Privacy Framework</strong> zertifiziert; zusätzlich bestehen EU-Standardvertragsklauseln. Details: <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">firebase.google.com/support/privacy</a>.</p>
+<p><strong>Speicherdauer:</strong> Verschlüsselte Nachrichten verbleiben im Cloud-Zwischenspeicher, bis sie zugestellt bzw. vom Nutzer gelöscht werden. Die anonyme UID besteht, solange die App installiert ist.</p>
+
+<h2>5. Berechtigungen der App</h2>
+<ul>
+  <li><strong>Kamera:</strong> nur zum Scannen von QR-Codes (Nachrichten, Einladungen). Es werden keine Fotos gespeichert oder übertragen.</li>
+  <li><strong>Mikrofon:</strong> nur für Sprachnachrichten, die Sie selbst aufnehmen; sie werden wie Textnachrichten Ende-zu-Ende verschlüsselt.</li>
+  <li><strong>Speicher/Dateien:</strong> zum Lesen/Schreiben von Schlüsseldateien und Anhängen in dem von Ihnen gewählten Ordner sowie auf USB-Datenträgern.</li>
+  <li><strong>Benachrichtigungen:</strong> lokale Hinweise auf neue Nachrichten.</li>
+  <li><strong>Netzwerkstatus:</strong> Erkennung, ob eine Internetverbindung für den optionalen Cloud-Transport verfügbar ist.</li>
+</ul>
+<p>Es findet <strong>keine Werbung, kein Tracking und keine Analyse</strong> (keine Analytics-, Crash- oder Werbe-SDKs) statt.</p>
+
+<h2>6. Website (con2.net/qgap)</h2>
+<p>Beim Aufruf dieser Website verarbeitet der Hosting-Anbieter technisch notwendige Server-Logdaten (IP-Adresse, Zeitpunkt, abgerufene Seite, User-Agent) zur Bereitstellung und Absicherung des Dienstes (Art. 6 Abs. 1 lit. f DSGVO). Die Website setzt <strong>keine Cookies</strong> und bindet <strong>keine Tracking-Dienste</strong> ein.</p>
+<!-- TODO: Hosting-Anbieter eintragen, z. B.: „Hosting-Anbieter: [ANBIETER, ANSCHRIFT]; mit dem Anbieter besteht ein Auftragsverarbeitungsvertrag." -->
+
+<h2>7. Ihre Rechte</h2>
+<p>Sie haben nach der DSGVO das Recht auf Auskunft (Art. 15), Berichtigung (Art. 16), Löschung (Art. 17), Einschränkung der Verarbeitung (Art. 18), Datenübertragbarkeit (Art. 20) und Widerspruch (Art. 21). Da QGap keine Konten führt und Inhalte nur verschlüsselt transportiert, können wir gespeicherte Cloud-Daten einer Person nur zuordnen, wenn Sie uns Ihre anonyme UID mitteilen (in der App unter Chat-Info einsehbar). Zudem haben Sie ein Beschwerderecht bei einer Datenschutz-Aufsichtsbehörde (Art. 77 DSGVO).</p>
+
+<h2>8. Kinder</h2>
+<p>Die App richtet sich nicht an Kinder unter 16 Jahren. Es werden keinerlei Daten erhoben, die eine Altersbestimmung ermöglichen.</p>
+
+<h2>9. Änderungen</h2>
+<p>Diese Datenschutzerklärung wird bei funktionalen Änderungen der App aktualisiert. Die jeweils aktuelle Fassung finden Sie unter <a href="https://con2.net/qgap/datenschutz.html">con2.net/qgap/datenschutz.html</a>.</p>
+
+<footer>
+  <p><a href="index.html">Startseite</a> · <a href="privacy.html">Privacy Policy (English)</a></p>
+  <p>© 2026 Markus Mühlnickel</p>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>QGap – Unbreakable encrypted messenger with air-gap QR transfer</title>
+<meta name="description" content="QGap: messages encrypted with a one-time pad – mathematically unbreakable. Works fully offline, air-gap transfer via animated QR codes. Plus presentations as a projector substitute for songs and images. For Android and Windows.">
+<style>
+  :root { --bg:#0f1a14; --card:#16241c; --accent:#2ecc71; --text:#e8f2ec; --muted:#9db8a9; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.6; }
+  .wrap { max-width:900px; margin:0 auto; padding:0 20px; }
+  header { padding:16px 0; display:flex; justify-content:space-between; align-items:center; }
+  .logo { font-size:1.4rem; font-weight:700; color:var(--accent); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:16px; }
+  nav a:hover { color:var(--text); }
+  .hero { text-align:center; padding:70px 0 50px; }
+  .hero h1 { font-size:2.4rem; line-height:1.2; margin-bottom:16px; }
+  .hero h1 span { color:var(--accent); }
+  .hero p { color:var(--muted); font-size:1.15rem; max-width:640px; margin:0 auto 30px; }
+  .btn { display:inline-block; background:var(--accent); color:#08130d; font-weight:700; padding:13px 28px; border-radius:8px; text-decoration:none; margin:6px; }
+  .btn.secondary { background:transparent; color:var(--accent); border:2px solid var(--accent); }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:18px; padding:40px 0; }
+  .card { background:var(--card); border-radius:12px; padding:24px; }
+  .card h3 { color:var(--accent); margin-bottom:8px; }
+  .card p { color:var(--muted); font-size:.97rem; }
+  section h2 { font-size:1.6rem; margin:40px 0 14px; color:var(--accent); }
+  section p, section li { color:var(--muted); }
+  section ul { padding-left:22px; margin:10px 0; }
+  footer { border-top:1px solid #223529; margin-top:60px; padding:26px 0; color:var(--muted); font-size:.9rem; }
+  footer a { color:var(--accent); text-decoration:none; }
+  .notice { background:var(--card); border-left:4px solid var(--accent); padding:14px 18px; border-radius:0 8px 8px 0; margin:20px 0; font-size:.95rem; color:var(--muted); }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="logo">🔐 QGap</div>
+  <nav>
+    <a href="index.html">Deutsch</a>
+    <a href="en.html">English</a>
+    <a href="privacy.html">Privacy</a>
+  </nav>
+</header>
+
+<div class="hero">
+  <h1>Messages <span>nobody</span> can read.<br>Not even an AI.</h1>
+  <p>QGap encrypts every message with a one-time pad – the only encryption method
+     that is mathematically proven to be unbreakable. Use it fully offline:
+     transfer messages via animated QR codes, no internet involved.</p>
+  <a class="btn" href="#download">📱 Download for Android</a>
+  <a class="btn secondary" href="#download">🖥️ Download for Windows</a>
+</div>
+
+<div class="grid">
+  <div class="card">
+    <h3>🔑 One-time pad (OTP)</h3>
+    <p>Every byte of your message is encrypted with a byte from a random key file
+       that is never reused. Without the key file, the ciphertext is provably
+       worthless – to any attacker, any supercomputer, any AI.</p>
+  </div>
+  <div class="card">
+    <h3>📵 Air gap: zero internet</h3>
+    <p>Key exchange happens hand-to-hand via USB stick. Messages can be transferred
+       as animated QR codes from screen to camera – your device never needs to go
+       online. No cloud, no servers, no traces.</p>
+  </div>
+  <div class="card">
+    <h3>🤖 Not readable by AI</h3>
+    <p>A one-time-pad ciphertext contains no exploitable patterns whatsoever.
+       No language model and no analysis software can reconstruct or store
+       content from the transmitted data.</p>
+  </div>
+  <div class="card">
+    <h3>☁️ Online if you choose</h3>
+    <p>Optionally, chats can be synced through a cloud transport – messages remain
+       end-to-end OTP-encrypted. The server only ever sees random bytes.</p>
+  </div>
+  <div class="card">
+    <h3>🛡️ Hybrid encryption (RSA + AES)</h3>
+    <p>No in-person key exchange possible, or too much effort? Then QGap offers a
+       proven hybrid scheme as an alternative: content is encrypted with
+       <strong>AES-256-GCM</strong>, and the random AES key with the recipient's
+       <strong>RSA-2048</strong> key. Chat securely right away – without handing over a
+       one-time-pad key file first.</p>
+  </div>
+  <div class="card">
+    <h3>🔍 Open source</h3>
+    <p>The source code of the QGap core – including all of the encryption – is
+       available as free software under the AGPLv3. Anyone can audit it – trust
+       through transparency, not promises.</p>
+  </div>
+  <div class="card">
+    <h3>💻 Android + Windows</h3>
+    <p>Full functionality on Android phones and Windows PCs. Messages, files,
+       voice messages, invitations – the same experience everywhere.</p>
+  </div>
+  <div class="card">
+    <h3>📽️ Presentations: your projector substitute</h3>
+    <p>Create presentations with song lyrics and images and show them on any screen
+       with a browser – perfect on the go when no projector is available. Share
+       control via QR code with multiple admins: everyone can advance slides, pick
+       songs and display images right from their own phone.</p>
+  </div>
+</div>
+
+<section id="who">
+  <h2>Who is QGap for?</h2>
+  <p>QGap is for everyone who wants to communicate freely – without anyone, any AI
+     or any corporation being able to read along:</p>
+  <ul>
+    <li><strong>Businesses:</strong> trade secrets, negotiations and internal coordination stay internal – no need to trust third-party servers or cloud providers.</li>
+    <li><strong>Journalists and reporters:</strong> protecting sources and research, even under surveillance pressure.</li>
+    <li><strong>Government agencies and organisations:</strong> confidential communication with verifiable, auditable technology instead of a black box.</li>
+    <li><strong>People in unsafe environments:</strong> wherever networks are monitored or devices may be compromised.</li>
+  </ul>
+  <p>The decisive advantage: encryption and decryption can run on a device that is
+     <strong>never connected to the internet</strong> – the message only crosses the gap
+     (air gap) as a QR code. This defeats spyware, trojans, keyloggers and
+     screen-capture malware alike: on the online device, the plaintext simply
+     does not exist – all that can be seen there is unreadable ciphertext.</p>
+</section>
+
+<section id="how">
+  <h2>How it works</h2>
+  <ul>
+    <li><strong>1. Generate a key file:</strong> QGap creates a random key file (e.g. 20&nbsp;MB – enough for thousands of messages).</li>
+    <li><strong>2. Exchange keys in person:</strong> the file is handed to your chat partner on a USB stick – never over the network.</li>
+    <li><strong>3. Write &amp; encrypt:</strong> each message consumes a section of the key that is never used again.</li>
+    <li><strong>4. Transfer your way:</strong> via animated QR code (100% offline), as a file (USB/any channel), or optionally through the cloud.</li>
+  </ul>
+</section>
+
+<section id="download">
+  <h2>Download</h2>
+  <p>
+    <!-- TODO: add links when available -->
+    📱 <strong>Android:</strong> coming soon on Google Play<br>
+    🖥️ <strong>Windows:</strong> QGap.exe – download link coming soon<br>
+    🔍 <strong>Source code:</strong> GitHub link coming soon
+  </p>
+  <div class="notice">
+    <strong>Note:</strong> the security of a one-time pad depends on the key file
+    staying secret and being used only once. QGap manages key positions
+    automatically – still, keep your key files safe.
+  </div>
+</section>
+
+<section id="contact">
+  <h2>Contact</h2>
+  <p>E-mail: <a href="mailto:paulprog@abwesend.de" style="color:var(--accent)">paulprog@abwesend.de</a></p>
+</section>
+
+<footer>
+  <p><strong>Legal notice / Impressum</strong> (required by German law, § 5 DDG):<br>
+  Markus Mühlnickel<br>
+  c/o ReAuTec GmbH<br>
+  Kalteiche Ring 31<br>
+  35708 Haiger, Germany<br>
+  E-mail: paulprog@abwesend.de</p>
+  <p style="margin-top:12px">
+    <a href="privacy.html">Privacy Policy</a> ·
+    <a href="datenschutz.html">Datenschutzerklärung (DE)</a> ·
+    <a href="index.html">Deutsche Version</a>
+  </p>
+  <p style="margin-top:12px">© 2026 Markus Mühlnickel – The source code of the QGap core is available as free software (AGPLv3).</p>
+</footer>
+
+</div>
+</body>
+</html>

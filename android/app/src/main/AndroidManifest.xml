@@ -1,0 +1,257 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="de.paulporg.obmc">
+    
+    <!-- Berechtigungen für Dateizugriff -->
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE"/>
+    
+    <!-- Neue Medien-Berechtigungen für Android 13+ -->
+    <uses-permission android:name="android.permission.READ_MEDIA_IMAGES"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO"/>
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    
+    <!-- Internet- und Kamera-Berechtigungen -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.CAMERA"/>
+    <!-- Mikrofon für Sprachnachrichten -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+    <!-- Hintergrund-Sync für Firestore Offline-Relay -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+    <!-- Benachrichtigungen (Android 13+) -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <!-- Verbindungsstatus prüfen (für Offline-Gerät-Sicherheitsprüfung) -->
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.BLUETOOTH" android:maxSdkVersion="30"/>
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" android:minSdkVersion="31"/>
+    <uses-permission android:name="android.permission.NFC"/>
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+    
+    <!-- Storage-spezifische Berechtigungen -->
+    <uses-permission android:name="android.permission.ACCESS_MEDIA_LOCATION"/>
+    
+    <application
+        android:label="QGap"
+        android:name="${applicationName}"
+        android:icon="@mipmap/ic_launcher"
+        android:requestLegacyExternalStorage="true"
+        android:enableOnBackInvokedCallback="true">
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=""
+            android:theme="@style/LaunchTheme"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|smallestScreenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:hardwareAccelerated="true"
+            android:windowSoftInputMode="adjustResize">
+            <!-- Specifies an Android theme to apply to this Activity as soon as
+                 the Android process has started. This theme is visible to the user
+                 while the Flutter UI initializes. After that, this theme continues
+                 to determine the Window background behind the Flutter UI. -->
+            <meta-data
+              android:name="io.flutter.embedding.android.NormalTheme"
+              android:resource="@style/NormalTheme"
+              />
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+
+            <!-- .qgap_ec Dateien öffnen (Einmal-Code Schlüsseldatei) -->
+            <!-- Filter 1: file:// mit Pfad-Pattern -->
+            <intent-filter android:label="QGap – EC-Schlüssel öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="file"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.qgap_ec"/>
+            </intent-filter>
+            <!-- Filter 2: content:// mit Pfad-Pattern (Android 7+) -->
+            <intent-filter android:label="QGap – EC-Schlüssel öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.qgap_ec"/>
+            </intent-filter>
+
+            <!-- Alte .obmc_ec Dateien (vor der Umbenennung) weiterhin öffnen -->
+            <intent-filter android:label="QGap – EC-Schlüssel öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="file"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.obmc_ec"/>
+            </intent-filter>
+            <intent-filter android:label="QGap – EC-Schlüssel öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.obmc_ec"/>
+            </intent-filter>
+            <!-- Filter 3: application/octet-stream ohne Pfad (generische Fallback) -->
+            <intent-filter android:label="QGap – EC-Schlüssel öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content" android:mimeType="application/octet-stream"/>
+                <data android:scheme="file"    android:mimeType="application/octet-stream"/>
+            </intent-filter>
+
+            <!-- .qgap Dateien öffnen (verschlüsselte Nachrichtendatei) -->
+            <!-- Filter 1: file:// mit Pfad-Pattern -->
+            <intent-filter android:label="QGap – Nachricht öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="file"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.qgap"/>
+            </intent-filter>
+            <!-- Filter 2: content:// mit Pfad-Pattern (Android 7+) -->
+            <intent-filter android:label="QGap – Nachricht öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.qgap"/>
+            </intent-filter>
+
+            <!-- Alte .obmc Dateien (vor der Umbenennung) weiterhin öffnen -->
+            <intent-filter android:label="QGap – Nachricht öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="file"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.obmc"/>
+            </intent-filter>
+            <intent-filter android:label="QGap – Nachricht öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.obmc"/>
+            </intent-filter>
+
+            <!-- .qgap Dateien teilen (von anderen Apps) -->
+            <intent-filter android:label="QGap – Nachricht senden">
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/octet-stream"/>
+                <data android:mimeType="*/*"/>
+            </intent-filter>
+
+            <!-- .qgap_ch Chat-Einladung öffnen (file://) -->
+            <intent-filter android:label="QGap – Chat-Einladung öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="file"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.qgap_ch"/>
+            </intent-filter>
+            <!-- .qgap_ch Chat-Einladung öffnen (content://) -->
+            <intent-filter android:label="QGap – Chat-Einladung öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.qgap_ch"/>
+            </intent-filter>
+
+            <!-- Alte .obmc_ch Dateien (vor der Umbenennung) weiterhin öffnen -->
+            <intent-filter android:label="QGap – Chat-Einladung öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="file"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.obmc_ch"/>
+            </intent-filter>
+            <intent-filter android:label="QGap – Chat-Einladung öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.obmc_ch"/>
+            </intent-filter>
+
+            <!-- .qgap_Privat_ID_aes Backup-Datei öffnen (file://) -->
+            <intent-filter android:label="QGap – Identitäts-Backup öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="file"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.qgap_Privat_ID_aes"/>
+            </intent-filter>
+            <!-- .qgap_Privat_ID_aes Backup-Datei öffnen (content://) -->
+            <intent-filter android:label="QGap – Identitäts-Backup öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.qgap_Privat_ID_aes"/>
+            </intent-filter>
+
+            <!-- Alte .obmc_Privat_ID_aes Dateien (vor der Umbenennung) weiterhin öffnen -->
+            <intent-filter android:label="QGap – Identitäts-Backup öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="file"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.obmc_Privat_ID_aes"/>
+            </intent-filter>
+            <intent-filter android:label="QGap – Identitäts-Backup öffnen">
+                <action android:name="android.intent.action.VIEW"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:scheme="content"
+                      android:host="*"
+                      android:mimeType="*/*"
+                      android:pathPattern=".*\\.obmc_Privat_ID_aes"/>
+            </intent-filter>
+        </activity>
+        <!-- Don't delete the meta-data below.
+             This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
+        <meta-data
+            android:name="flutterEmbedding"
+            android:value="2" />
+
+        <!-- FileProvider: erlaubt das Teilen von Dateien via content:// URIs auf Android 7+ -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths"/>
+        </provider>
+    </application>
+    <!-- Required to query activities that can process text, see:
+         https://developer.android.com/training/package-visibility and
+         https://developer.android.com/reference/android/content/Intent#ACTION_PROCESS_TEXT.
+
+         In particular, this is used by the Flutter engine in io.flutter.plugin.text.ProcessTextPlugin. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.PROCESS_TEXT"/>
+            <data android:mimeType="text/plain"/>
+        </intent>
+    </queries>
+</manifest>

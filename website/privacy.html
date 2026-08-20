@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy – QGap</title>
+<meta name="robots" content="noindex">
+<style>
+  :root { --bg:#0f1a14; --card:#16241c; --accent:#2ecc71; --text:#e8f2ec; --muted:#9db8a9; }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--text); line-height:1.65; }
+  .wrap { max-width:800px; margin:0 auto; padding:20px; }
+  header { padding:10px 0 26px; display:flex; justify-content:space-between; align-items:center; }
+  .logo { font-size:1.3rem; font-weight:700; color:var(--accent); }
+  nav a { color:var(--muted); text-decoration:none; margin-left:16px; }
+  h1 { font-size:1.8rem; margin-bottom:6px; }
+  h2 { color:var(--accent); font-size:1.25rem; margin:30px 0 10px; }
+  p, li { color:var(--muted); margin-bottom:10px; }
+  ul { padding-left:22px; }
+  .stand { font-size:.9rem; color:var(--muted); margin-bottom:24px; }
+  a { color:var(--accent); }
+  footer { border-top:1px solid #223529; margin-top:50px; padding:20px 0; color:var(--muted); font-size:.9rem; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="logo">🔐 QGap</div>
+  <nav>
+    <a href="en.html">Home</a>
+    <a href="datenschutz.html">Deutsch</a>
+  </nav>
+</header>
+
+<h1>Privacy Policy</h1>
+<p class="stand">for the “QGap” app (Android, Windows) and the website con2.net/qgap<br>Last updated: August 2026</p>
+
+<h2>1. Controller</h2>
+<p>Markus Mühlnickel<br>
+c/o ReAuTec GmbH<br>
+Kalteiche Ring 31<br>
+35708 Haiger, Germany<br>
+E-mail: <a href="mailto:paulprog@abwesend.de">paulprog@abwesend.de</a></p>
+
+<h2>2. Core principle: data minimisation</h2>
+<p>QGap is designed to process as little personal data as possible:</p>
+<ul>
+  <li>There is <strong>no user account</strong> – no name, phone number or e-mail address is required.</li>
+  <li>Messages are <strong>end-to-end encrypted on your device using a one-time pad</strong>. Plaintext never leaves the device.</li>
+  <li>Key files are stored <strong>locally only</strong> and are never transmitted to us or to any third party.</li>
+  <li>In pure <strong>offline/air-gap mode</strong> (QR-code or USB transfer) no data is transmitted over the internet at all.</li>
+</ul>
+
+<h2>3. Data stored locally on your device</h2>
+<p>Chats, messages, key files, settings and received files are stored exclusively on your device (Android: app data folder or a folder chosen by you; Windows: the data folder you selected). This data is under your sole control; we have no access to it. It is removed when you delete the app or the data folders.</p>
+
+<h2>4. Optional online feature (cloud transport)</h2>
+<p>Only if you actively use the online feature (online invitation / cloud sync), the app processes the following data through <strong>Google Firebase</strong> (Google Ireland Ltd., Gordon House, Barrow Street, Dublin 4, Ireland):</p>
+<ul>
+  <li><strong>Anonymous authentication</strong> (Firebase Authentication): a random, anonymous user ID (UID) is created. No names, e-mail addresses or phone numbers are collected.</li>
+  <li><strong>Message transport</strong> (Cloud Firestore): only <em>encrypted</em> message content is transmitted and buffered (one-time-pad ciphertext, unreadable to the operator and to Google), plus technical metadata (anonymous UIDs of chat participants, timestamps, chat ID).</li>
+  <li><strong>Asymmetric/hybrid encryption:</strong> as an alternative to the one-time pad – when exchanging the key file in person is not possible or too much effort – a hybrid scheme is used: content is encrypted with <strong>AES-256 in GCM mode</strong>; the randomly generated AES key is encrypted with the recipient's public <strong>RSA key (2048 bit)</strong>. The private RSA key never leaves the recipient's device; neither the operator nor Google can decrypt the content.</li>
+  <li><strong>File attachments</strong> (Firebase Storage): also transmitted in encrypted form only.</li>
+  <li><strong>Presentation feature (public screen):</strong> if you create and share a presentation (e.g. song lyrics, images), its content is transmitted to the display devices via Cloud Firestore and Firebase Storage. Unlike chat messages, this content is <em>not</em> encrypted, as it is meant to be visible to anyone with the display link or QR code. Therefore, do not put confidential or personal content into presentations. The content remains in the cloud until the session is deleted.</li>
+</ul>
+<p><strong>Legal basis:</strong> Art. 6(1)(b) GDPR (providing the feature you requested).</p>
+<p><strong>Third-country transfer:</strong> Firebase may process data on servers in the USA. Google LLC is certified under the <strong>EU-US Data Privacy Framework</strong>; EU Standard Contractual Clauses are additionally in place. Details: <a href="https://firebase.google.com/support/privacy" target="_blank" rel="noopener">firebase.google.com/support/privacy</a>.</p>
+<p><strong>Retention:</strong> encrypted messages remain in the cloud buffer until delivered or deleted by the user. The anonymous UID exists for as long as the app is installed.</p>
+
+<h2>5. App permissions</h2>
+<ul>
+  <li><strong>Camera:</strong> only for scanning QR codes (messages, invitations). No photos are stored or transmitted.</li>
+  <li><strong>Microphone:</strong> only for voice messages you record yourself; they are end-to-end encrypted like text messages.</li>
+  <li><strong>Storage/files:</strong> for reading/writing key files and attachments in the folder you selected and on USB drives.</li>
+  <li><strong>Notifications:</strong> local alerts for new messages.</li>
+  <li><strong>Network state:</strong> detecting whether an internet connection is available for the optional cloud transport.</li>
+</ul>
+<p>There is <strong>no advertising, no tracking and no analytics</strong> (no analytics, crash-reporting or advertising SDKs).</p>
+
+<h2>6. Website (con2.net/qgap)</h2>
+<p>When you visit this website, the hosting provider processes technically necessary server log data (IP address, time, page requested, user agent) to deliver and secure the service (Art. 6(1)(f) GDPR). This website sets <strong>no cookies</strong> and embeds <strong>no tracking services</strong>.</p>
+<!-- TODO: add hosting provider, e.g.: "Hosting provider: [PROVIDER, ADDRESS]; a data processing agreement is in place." -->
+
+<h2>7. Your rights</h2>
+<p>Under the GDPR you have the right of access (Art. 15), rectification (Art. 16), erasure (Art. 17), restriction of processing (Art. 18), data portability (Art. 20) and objection (Art. 21). Since QGap has no user accounts and only transports encrypted content, we can attribute stored cloud data to a person only if you provide us with your anonymous UID (shown in the app under chat info). You also have the right to lodge a complaint with a data protection supervisory authority (Art. 77 GDPR).</p>
+
+<h2>8. Children</h2>
+<p>The app is not directed at children under 16. No data is collected that would allow age determination.</p>
+
+<h2>9. Changes</h2>
+<p>This privacy policy is updated when app functionality changes. The current version is always available at <a href="https://con2.net/qgap/privacy.html">con2.net/qgap/privacy.html</a>.</p>
+
+<footer>
+  <p><a href="en.html">Home</a> · <a href="datenschutz.html">Datenschutzerklärung (German)</a></p>
+  <p>© 2026 Markus Mühlnickel</p>
+</footer>
+
+</div>
+</body>
+</html>
